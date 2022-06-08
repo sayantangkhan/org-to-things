@@ -1,0 +1,63 @@
+name:                org-to-things
+version:             0.1.0.0
+github:              "sayantangkhan/org-to-things"
+license:             MIT
+author:              "Sayantan Khan"
+maintainer:          "sayantangkhan@gmail.com"
+copyright:           "2022 Sayantan Khan"
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+- Specifications.org
+
+# Metadata used when publishing your package
+synopsis:            Convert Org files to HTML with links to import into Things 3
+category:            Web
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the README on GitHub at <https://github.com/sayantangkhan/org-to-things#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+- text
+- pandoc
+- pandoc-types
+- safe
+- mtl
+- transformers
+- data-default
+- extra
+
+ghc-options:
+- -Wall
+- -Wincomplete-record-updates
+- -fwarn-tabs
+
+library:
+  source-dirs: src
+
+executables:
+  org-to-things-exe:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - org-to-things
+
+tests:
+  org-to-things-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - org-to-things
+    - hspec

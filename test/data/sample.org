@@ -1,0 +1,44 @@
+#+STARTUP: indent
+#+STARTUP: overview
+#+OPTIONS: p:t
+#+TITLE: Sample Org file
+
+* Inbox
+
+* Area 2
+** TODO Todo without a project                            :programming:maths:
+Blah notes blah [[https://culturedcode.com/things/support/articles/2803573/][Things]] ~code block~ /italics/ *bold*.
+** TODO Todo without a project with notes without checkboxes
+SCHEDULED: <2022-06-14 Tue>
+Some example notes
+** TODO Todo without a project with notes and checkboxes
+SCHEDULED: <2022-06-14 Tue>
+Some notes
+- [ ] Blah
+- [ ] Blah 2
+
+* Area 3
+** Project 1                                              :programming:math:
+SCHEDULED: <2022-06-14 Tue> DEADLINE: <2022-06-18 Sat>
+Some notes here
+** Project 2                                                    :math:
+*** TODO Todo not in area
+DEADLINE: <2022-06-16 Thu> SCHEDULED: <2022-06-14 Tue>
+*** TODO Todo not in area with notes and checkboxes
+SCHEDULED: <2022-06-14 Tue>
+Some notes
+- [ ] Blah
+- [ ] Blah 2
+*** Area 1
+**** TODO Todo with notes without checkboxes                 :programming:
+SCHEDULED: <2022-06-15 Wed 11:34>
+Some example notes
+**** TODO Todo with notes and checkboxes
+SCHEDULED: <2022-06-14 Tue>
+Some notes
+- [ ] Blah
+- [ ] Blah 2
+*** Area 2
+**** TODO Todo with notes without checkboxes            :programming:math:
+SCHEDULED: <2022-06-14 Tue>
+Some example notes

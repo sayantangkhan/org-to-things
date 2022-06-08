@@ -1,0 +1,34 @@
+#+STARTUP: indent
+#+STARTUP: overview
+#+TITLE: Specifications for going between Org and Things
+
+* Things model
+Todos in Things can belong in the Inbox (which corresponds to not being in any Area or Project), or belong to an Area, but not a Project, or can belong to a Project that is in an Area.
+Within a Project, the todo can optionally belong to a Heading.
+
+Todos can have notes up to 10000 characters (and the content can be markdown). Projects can also have associated notes with the same length restriction.
+
+Todos and Projects can have When and Deadline: When can be a date string or a date time string. The latter sets a reminder for that time. Deadline is always a date string.
+
+Todos and Projects can also have tags, picked from a set of pre-generated tags.
+
+Todos can have checklist items up to a maximum of 100.
+* Org mapping
+Todos in Org are specified by the ~TODO~ prefix. They must be at least one level deep, i.e. Todos cannot be top level, and depending on their nesting depth, they will belong to the Inbox, or an Area, or a Project within an Area, or a Heading within a Project within an Area.
+
+The text immediately following the planning information of a Todo maps to notes for the corresponding Todo in Things.
+The headings at level 1 must necessarily correspond to Projects, and the text following their planning information maps to notes for the corresponding Project in Things.
+
+Todos and projects can have ~SCHEDULED~ and ~DEADLINE~ planning info. ~SCHEDULED~ can be a date or a datetime string and ~DEADLINE~ must be a date string if it exists.
+
+Todos and Projects can also have tags, picked from a set of pre-generated tags.
+
+Todos can have checklist items up to a maximum of 100.
+* Constraints to satisfy
+** Things
+- All Areas and Projects must have unique names, i.e. no Area can have the same name as a Project, and no two Areas or Projects can have the same name.
+- Projects must always belong to an Area.
+** Org
+- All TODOs must have depth between 1 and 4.
+
+* List of valid tags

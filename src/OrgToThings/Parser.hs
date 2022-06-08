@@ -1,0 +1,257 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE OverloadedStrings #-}
+
+-- |
+-- Module: OrgToThings.ParserMonad
+--
+-- Parser monad to parse String, \[Inline\], and \[Block\].
+module OrgToThings.Parser where
+
+import Control.Applicative (Alternative (..))
+import Control.Monad
+import Control.Monad.Trans.State.Strict
+import Data.Char (isDigit)
+import qualified Data.Text as T
+import OrgToThings.Definitions
+import Text.Pandoc.Definition
+
+-- | Generalized parser Monad, where t is the token type, e is the error type, and a is the return type.
+newtype TokenParser t e a = TokenParser {unParser :: StateT [t] (Either e) a}
+
+type CharParser = TokenParser Char String
+
+type InlineParser = TokenParser Inline (String, Maybe Inline)
+
+runParser :: TokenParser t e a -> [t] -> Either e (a, [t])
+runParser = runStateT . unParser
+
+evalParser :: TokenParser t e a -> [t] -> Either e a
+evalParser = evalStateT . unParser
+
+instance Functor (TokenParser t e) where
+  fmap :: (a -> b) -> TokenParser t e a -> TokenParser t e b
+  fmap f p = TokenParser $ f <$> unParser p
+
+instance Applicative (TokenParser t e) where
+  pure :: a -> TokenParser t e a
+  pure a = TokenParser $ pure a
+  (<*>) :: TokenParser t e (a -> b) -> TokenParser t e a -> TokenParser t e b
+  f <*> a = TokenParser $ unParser f <*> unParser a
+
+instance Alternative CharParser where
+  empty :: CharParser a
+  empty = TokenParser $ StateT Left
+  (<|>) :: CharParser a -> CharParser a -> CharParser a
+  a <|> b = TokenParser $ StateT $ \s -> combine (runStateT (unParser a) s) (runStateT (unParser b) s)
+    where
+      combine (Left _) y = y
+      combine x _ = x
+
+instance Alternative InlineParser where
+  empty :: InlineParser a
+  empty = TokenParser $
+    StateT $ \s -> case s of
+      [] -> Left ("Expected non-empty input", Nothing)
+      (x : _) -> Left ("Unexpected Inline", Just x)
+  (<|>) :: InlineParser a -> InlineParser a -> InlineParser a
+  a <|> b = TokenParser $ StateT $ \s -> combine (runStateT (unParser a) s) (runStateT (unParser b) s)
+    where
+      combine (Left _) y = y
+      combine x _ = x
+
+instance Monad (TokenParser t e) where
+  (>>=) :: TokenParser t e a -> (a -> TokenParser t e b) -> TokenParser t e b
+  a >>= f = TokenParser $
+    StateT $ \s -> do
+      (a', s') <- runParser a s
+      runParser (f a') s'
+
+expectedMessage :: String -> CharParser a -> CharParser a
+expectedMessage expected parser = TokenParser . StateT $ applyParser
+  where
+    applyParser s = case (runParser parser s) of
+      Left _ -> Left ("Expected " ++ expected ++ ". Found " ++ s)
+      x -> x
+
+parseAnyChar :: CharParser Char
+parseAnyChar = TokenParser . StateT $ \s -> case s of
+  [] -> empty
+  (c : cs) -> pure (c, cs)
+
+parseStringEOL :: CharParser ()
+parseStringEOL = TokenParser . StateT $ \s -> case s of
+  [] -> pure ((), [])
+  c -> Left $ "Expected PARSESTRINGEOL. Found '" ++ c ++ "'"
+
+peekAnyChar :: CharParser Char
+peekAnyChar = TokenParser . StateT $ \s -> case s of
+  [] -> empty
+  (c : cs) -> pure (c, (c : cs))
+
+satisfyCombinatorString :: (Char -> Bool) -> CharParser Char
+satisfyCombinatorString predicate = do
+  c <- peekAnyChar
+  guard $ predicate c
+  c' <- parseAnyChar
+  pure c'
+
+parseChar :: Char -> CharParser Char
+parseChar = satisfyCombinatorString . (==)
+
+parseDigit :: CharParser Char
+parseDigit = satisfyCombinatorString isDigit
+
+parseYear :: CharParser Int
+parseYear = read <$> replicateM 4 parseDigit
+
+parseDate :: CharParser (Int, Int, Int)
+parseDate = do
+  year <- read <$> replicateM 4 parseDigit
+  void $ parseChar '-'
+  month <- read <$> replicateM 2 parseDigit
+  void $ parseChar '-'
+  day <- read <$> replicateM 2 parseDigit
+  return (year, month, day)
+
+parseTime :: CharParser (Int, Int)
+parseTime = do
+  hour <- read <$> replicateM 2 parseDigit
+  void $ parseChar ':'
+  minute <- read <$> replicateM 2 parseDigit
+  return (hour, minute)
+
+parseScheduledString :: CharParser Scheduled
+parseScheduledString = expectedMessage "schedule" $ (planningDateTime <|> planningDate) <* parseStringEOL
+  where
+    planningDateTime = do
+      date <- parseChar '<' *> parseDate <* replicateM 5 parseAnyChar
+      time <- parseTime <* parseChar '>'
+      return $ DateTimeS (date, time)
+    planningDate = do
+      date <- parseChar '<' *> parseDate <* replicateM 4 parseAnyChar <* parseChar '>'
+      return $ DateS date
+
+parseDeadlineString :: CharParser Deadline
+parseDeadlineString = expectedMessage "deadline" $ planningDate <* parseStringEOL
+  where
+    planningDate = do
+      date <- parseChar '<' *> parseDate <* replicateM 4 parseAnyChar <* parseChar '>'
+      return $ DateD date
+
+readScheduled :: T.Text -> Either String Scheduled
+readScheduled t = evalParser parseScheduledString (T.unpack t)
+
+readDeadline :: T.Text -> Either String Deadline
+readDeadline t = evalParser parseDeadlineString (T.unpack t)
+
+parseWhitespaceInline :: InlineParser ()
+parseWhitespaceInline = TokenParser . StateT $ \s -> case s of
+  (Space : xs) -> pure ((), xs)
+  (x : _) -> Left ("Expected Space", Just x)
+  _ -> Left ("Expected input", Nothing)
+
+parseStrInline :: T.Text -> InlineParser T.Text
+parseStrInline text = TokenParser . StateT $ \s -> case s of
+  (Strong [Str inner_text] : xs) -> pure (inner_text, xs)
+  (x : _) -> Left ("Expected" ++ T.unpack text ++ ".", Just x)
+  _ -> Left ("Expected input", Nothing)
+
+parseDeadlineMarkInline :: InlineParser ()
+parseDeadlineMarkInline = void $ parseStrInline "DEADLINE:"
+
+parseScheduledMarkInline :: InlineParser ()
+parseScheduledMarkInline = void $ parseStrInline "SCHEDULED:"
+
+parseDeadlineInline :: InlineParser Deadline
+parseDeadlineInline = parseDeadlineMarkInline *> parseWhitespaceInline *> parseInlineDeadline
+  where
+    parseInlineDeadline = TokenParser . StateT $
+      \s -> case s of
+        (Emph [Str deadline_text] : xs) -> case (readDeadline deadline_text) of
+          Right d -> pure (d, xs)
+          Left e -> Left (e, Just $ Emph [Str deadline_text])
+        (x : _) -> Left ("Expected deadline", Just x)
+        _ -> Left ("Expected input", Nothing)
+
+parseScheduledInline :: InlineParser Scheduled
+parseScheduledInline = parseScheduledMarkInline *> parseWhitespaceInline *> parseInlineScheduled
+  where
+    parseInlineScheduled = TokenParser . StateT $
+      \s -> case s of
+        (Emph [Str scheduled_text] : xs) -> case (readScheduled scheduled_text) of
+          Right d -> pure (d, xs)
+          Left e -> Left (e, Just $ Emph [Str scheduled_text])
+        (x : _) -> Left ("Expected schedule", Just x)
+        _ -> Left ("Expected input", Nothing)
+
+parsePlanningInline :: InlineParser (Maybe Scheduled, Maybe Deadline)
+parsePlanningInline = scheduled_then_deadline <|> deadline_then_scheduled <|> only_scheduled <|> only_deadline
+  where
+    scheduled_then_deadline = do
+      scheduled <- parseScheduledInline
+      parseWhitespaceInline
+      deadline <- parseDeadlineInline
+      return (Just scheduled, Just deadline)
+    deadline_then_scheduled = do
+      deadline <- parseDeadlineInline
+      parseWhitespaceInline
+      scheduled <- parseScheduledInline
+      return (Just scheduled, Just deadline)
+    only_scheduled = do
+      scheduled <- parseScheduledInline
+      return (Just scheduled, Nothing)
+    only_deadline = do
+      deadline <- parseDeadlineInline
+      return (Nothing, Just deadline)
+
+-- | A useful parser combinator
+greedyManyTill :: TokenParser t e a -> TokenParser t e end -> TokenParser t e [a]
+greedyManyTill parser endParser = TokenParser . StateT $ innerLambda
+  where
+    innerLambda s = case (runParser parser s) of
+      Left _ -> baseCase s
+      Right (a, u) -> case (innerLambda u) of
+        Right (as, v) -> Right ((a : as), v)
+        Left _ -> baseCase s
+    baseCase s = case (runParser endParser s) of
+      Right (_, u) -> Right ([], u)
+      Left x -> Left x
+
+sepBy :: TokenParser t e a -> TokenParser t e sep -> TokenParser t e [a]
+sepBy parser sepParser = TokenParser . StateT $ innerLambda
+  where
+    innerLambda s = case (runParser parser s) of
+      Right (a, u) -> case (runParser sepParser u) of
+        Right (_, v) -> (\(as, w) -> ((a : as), w)) <$> (innerLambda v)
+        Left _ -> Right ([a], u)
+      Left x -> Left x
+
+parseTodoAndTagsInline :: InlineParser (T.Text, [T.Text])
+parseTodoAndTagsInline = do
+  isTodo
+  parseWhitespaceInline
+  title <- parseTitle
+  tags <- parseTags
+  return (title, tags)
+  where
+    isTodo = TokenParser . StateT $ \s -> case s of
+      ((Span _ [Str "TODO"]) : xs) -> Right ((), xs)
+      (x : _) -> Left ("Expected 'TODO'", Just x)
+      _ -> Left ("Expected input", Nothing)
+    parseStr :: InlineParser T.Text
+    parseStr = TokenParser . StateT $ \s -> case s of
+      (Str inner_text : xs) -> pure (inner_text, xs)
+      (Space : xs) -> pure (" ", xs)
+      (x : _) -> Left ("Expected Str or Space", Just x)
+      _ -> Left ("Expected input", Nothing)
+    parseTitle = T.concat <$> (greedyManyTill parseStr parseWhitespaceInline)
+    parseTag = TokenParser . StateT $ \s -> case s of
+      (Span (_, _, [("tag-name", tag)]) _ : xs) -> pure (tag, xs)
+      (x : _) -> Left ("Expected tag", Just x)
+      _ -> Left ("Expected input", Nothing)
+    parseSep = TokenParser . StateT $ \s -> case s of
+      (Str "\160" : xs) -> pure ((), xs)
+      (x : _) -> Left ("Expected separator", Just x)
+      _ -> Left ("Expected input", Nothing)
+    parseTags = sepBy parseTag parseSep

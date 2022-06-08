@@ -1,0 +1,299 @@
+[ RawBlock (Format "org") "#+STARTUP: indent"
+, RawBlock (Format "org") "#+STARTUP: overview"
+, Header 1 ( "inbox" , [] , [] ) [ Str "Inbox" ]
+, Header
+    1 ( "area-2" , [] , [] ) [ Str "Area" , Space , Str "2" ]
+, Header
+    2
+    ( "todo-without-a-project" , [] , [] )
+    [ Span ( "" , [ "todo" , "TODO" ] , [] ) [ Str "TODO" ]
+    , Space
+    , Str "Todo"
+    , Space
+    , Str "without"
+    , Space
+    , Str "a"
+    , Space
+    , Str "project"
+    , Space
+    , Span
+        ( "" , [ "tag" ] , [ ( "tag-name" , "programming" ) ] )
+        [ SmallCaps [ Str "programming" ] ]
+    , Str "\160"
+    , Span
+        ( "" , [ "tag" ] , [ ( "tag-name" , "maths" ) ] )
+        [ SmallCaps [ Str "maths" ] ]
+    ]
+, Para
+    [ Str "Blah"
+    , Space
+    , Str "notes"
+    , Space
+    , Str "blah"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "Things" ]
+        ( "https://culturedcode.com/things/support/articles/2803573/"
+        , ""
+        )
+    , Space
+    , Code ( "" , [] , [] ) "code block"
+    , Space
+    , Emph [ Str "italics" ]
+    , Space
+    , Strong [ Str "bold" ]
+    , Str "."
+    ]
+, Header
+    2
+    ( "todo-without-a-project-with-notes-without-checkboxes"
+    , []
+    , []
+    )
+    [ Span ( "" , [ "todo" , "TODO" ] , [] ) [ Str "TODO" ]
+    , Space
+    , Str "Todo"
+    , Space
+    , Str "without"
+    , Space
+    , Str "a"
+    , Space
+    , Str "project"
+    , Space
+    , Str "with"
+    , Space
+    , Str "notes"
+    , Space
+    , Str "without"
+    , Space
+    , Str "checkboxes"
+    ]
+, Plain
+    [ Strong [ Str "SCHEDULED:" ]
+    , Space
+    , Emph [ Str "<2022-06-14 Tue>" ]
+    ]
+, Para
+    [ Str "Some" , Space , Str "example" , Space , Str "notes" ]
+, Header
+    2
+    ( "todo-without-a-project-with-notes-and-checkboxes"
+    , []
+    , []
+    )
+    [ Span ( "" , [ "todo" , "TODO" ] , [] ) [ Str "TODO" ]
+    , Space
+    , Str "Todo"
+    , Space
+    , Str "without"
+    , Space
+    , Str "a"
+    , Space
+    , Str "project"
+    , Space
+    , Str "with"
+    , Space
+    , Str "notes"
+    , Space
+    , Str "and"
+    , Space
+    , Str "checkboxes"
+    ]
+, Plain
+    [ Strong [ Str "SCHEDULED:" ]
+    , Space
+    , Emph [ Str "<2022-06-14 Tue>" ]
+    ]
+, Para [ Str "Some" , Space , Str "notes" ]
+, BulletList
+    [ [ Plain [ Str "\9744" , Space , Str "Blah" ] ]
+    , [ Plain
+          [ Str "\9744" , Space , Str "Blah" , Space , Str "2" ]
+      ]
+    ]
+, Header
+    1 ( "area-3" , [] , [] ) [ Str "Area" , Space , Str "3" ]
+, Header
+    2
+    ( "project-1" , [] , [] )
+    [ Str "Project"
+    , Space
+    , Str "1"
+    , Space
+    , Span
+        ( "" , [ "tag" ] , [ ( "tag-name" , "programming" ) ] )
+        [ SmallCaps [ Str "programming" ] ]
+    , Str "\160"
+    , Span
+        ( "" , [ "tag" ] , [ ( "tag-name" , "math" ) ] )
+        [ SmallCaps [ Str "math" ] ]
+    ]
+, Plain
+    [ Strong [ Str "DEADLINE:" ]
+    , Space
+    , Emph [ Str "<2022-06-18 Sat>" ]
+    , Space
+    , Strong [ Str "SCHEDULED:" ]
+    , Space
+    , Emph [ Str "<2022-06-14 Tue>" ]
+    ]
+, Para
+    [ Str "Some" , Space , Str "notes" , Space , Str "here" ]
+, Header
+    2
+    ( "project-2" , [] , [] )
+    [ Str "Project"
+    , Space
+    , Str "2"
+    , Space
+    , Span
+        ( "" , [ "tag" ] , [ ( "tag-name" , "math" ) ] )
+        [ SmallCaps [ Str "math" ] ]
+    ]
+, Header
+    3
+    ( "todo-not-in-area" , [] , [] )
+    [ Span ( "" , [ "todo" , "TODO" ] , [] ) [ Str "TODO" ]
+    , Space
+    , Str "Todo"
+    , Space
+    , Str "not"
+    , Space
+    , Str "in"
+    , Space
+    , Str "area"
+    ]
+, Plain
+    [ Strong [ Str "DEADLINE:" ]
+    , Space
+    , Emph [ Str "<2022-06-16 Thu>" ]
+    , Space
+    , Strong [ Str "SCHEDULED:" ]
+    , Space
+    , Emph [ Str "<2022-06-14 Tue>" ]
+    ]
+, Header
+    3
+    ( "todo-not-in-area-with-notes-and-checkboxes" , [] , [] )
+    [ Span ( "" , [ "todo" , "TODO" ] , [] ) [ Str "TODO" ]
+    , Space
+    , Str "Todo"
+    , Space
+    , Str "not"
+    , Space
+    , Str "in"
+    , Space
+    , Str "area"
+    , Space
+    , Str "with"
+    , Space
+    , Str "notes"
+    , Space
+    , Str "and"
+    , Space
+    , Str "checkboxes"
+    ]
+, Plain
+    [ Strong [ Str "SCHEDULED:" ]
+    , Space
+    , Emph [ Str "<2022-06-14 Tue>" ]
+    ]
+, Para [ Str "Some" , Space , Str "notes" ]
+, BulletList
+    [ [ Plain [ Str "\9744" , Space , Str "Blah" ] ]
+    , [ Plain
+          [ Str "\9744" , Space , Str "Blah" , Space , Str "2" ]
+      ]
+    ]
+, Header
+    3 ( "area-1" , [] , [] ) [ Str "Area" , Space , Str "1" ]
+, OrderedList
+    ( 1 , DefaultStyle , DefaultDelim )
+    [ [ Para
+          [ Span ( "" , [ "todo" , "TODO" ] , [] ) [ Str "TODO" ]
+          , Space
+          , Str "Todo"
+          , Space
+          , Str "with"
+          , Space
+          , Str "notes"
+          , Space
+          , Str "without"
+          , Space
+          , Str "checkboxes"
+          , Space
+          , Span
+              ( "" , [ "tag" ] , [ ( "tag-name" , "programming" ) ] )
+              [ SmallCaps [ Str "programming" ] ]
+          ]
+      , Plain
+          [ Strong [ Str "SCHEDULED:" ]
+          , Space
+          , Emph [ Str "<2022-06-15 Wed 11:34>" ]
+          ]
+      , Para
+          [ Str "Some" , Space , Str "example" , Space , Str "notes" ]
+      ]
+    , [ Para
+          [ Span ( "" , [ "todo" , "TODO" ] , [] ) [ Str "TODO" ]
+          , Space
+          , Str "Todo"
+          , Space
+          , Str "with"
+          , Space
+          , Str "notes"
+          , Space
+          , Str "and"
+          , Space
+          , Str "checkboxes"
+          ]
+      , Plain
+          [ Strong [ Str "SCHEDULED:" ]
+          , Space
+          , Emph [ Str "<2022-06-14 Tue>" ]
+          ]
+      , Para [ Str "Some" , Space , Str "notes" ]
+      , BulletList
+          [ [ Plain [ Str "\9744" , Space , Str "Blah" ] ]
+          , [ Plain
+                [ Str "\9744" , Space , Str "Blah" , Space , Str "2" ]
+            ]
+          ]
+      ]
+    ]
+, Header
+    3 ( "area-2-1" , [] , [] ) [ Str "Area" , Space , Str "2" ]
+, OrderedList
+    ( 1 , DefaultStyle , DefaultDelim )
+    [ [ Para
+          [ Span ( "" , [ "todo" , "TODO" ] , [] ) [ Str "TODO" ]
+          , Space
+          , Str "Todo"
+          , Space
+          , Str "with"
+          , Space
+          , Str "notes"
+          , Space
+          , Str "without"
+          , Space
+          , Str "checkboxes"
+          , Space
+          , Span
+              ( "" , [ "tag" ] , [ ( "tag-name" , "programming" ) ] )
+              [ SmallCaps [ Str "programming" ] ]
+          , Str "\160"
+          , Span
+              ( "" , [ "tag" ] , [ ( "tag-name" , "math" ) ] )
+              [ SmallCaps [ Str "math" ] ]
+          ]
+      , Plain
+          [ Strong [ Str "SCHEDULED:" ]
+          , Space
+          , Emph [ Str "<2022-06-14 Tue>" ]
+          ]
+      , Para
+          [ Str "Some" , Space , Str "example" , Space , Str "notes" ]
+      ]
+    ]
+]
