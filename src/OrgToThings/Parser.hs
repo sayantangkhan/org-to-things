@@ -155,9 +155,17 @@ parseWhitespaceInline = parserConstructor $ \case
   (x : _) -> Left ("Expected Space", Just x)
   _ -> Left ("Expected input", Nothing)
 
+parseEOLInline :: InlineParser ()
+parseEOLInline = parserConstructor $ \case
+  [] -> pure ((), [])
+  (x : _) -> Left ("Expected empty input", Just x)
+
 parseStrInline :: T.Text -> InlineParser T.Text
 parseStrInline text = parserConstructor $ \case
-  (Strong [Str inner_text] : xs) -> pure (inner_text, xs)
+  (x@(Strong [Str inner_text]) : xs) ->
+    if inner_text == text
+      then pure (inner_text, xs)
+      else Left ("Expected" ++ T.unpack text ++ ".", Just x)
   (x : _) -> Left ("Expected" ++ T.unpack text ++ ".", Just x)
   _ -> Left ("Expected input", Nothing)
 
@@ -249,7 +257,7 @@ parseTodoAndTagsInline = do
       (Space : xs) -> pure (" ", xs)
       (x : _) -> Left ("Expected Str or Space", Just x)
       _ -> Left ("Expected input", Nothing)
-    parseTitle = T.concat <$> greedyManyTill parseStr parseWhitespaceInline
+    parseTitle = T.concat <$> greedyManyTill parseStr (parseWhitespaceInline <|> parseEOLInline)
     parseTag = parserConstructor $ \case
       (Span (_, _, [("tag-name", tag)]) _ : xs) -> pure (tag, xs)
       (x : _) -> Left ("Expected tag", Just x)
@@ -258,4 +266,5 @@ parseTodoAndTagsInline = do
       (Str "\160" : xs) -> pure ((), xs)
       (x : _) -> Left ("Expected separator", Just x)
       _ -> Left ("Expected input", Nothing)
-    parseTags = sepBy parseTag parseSep
+    -- parseTags = sepBy parseTag parseSep <|> const [] <$> parseEOLInline
+    parseTags = sepBy parseTag parseSep <|> ([] <$ parseEOLInline)
