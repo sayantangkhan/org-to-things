@@ -181,3 +181,92 @@ spec = parallel $ do
             ]
       let output = Left ("Expected 'TODO'", Just $ Str "Todo")
       runParser parseTodoAndTagsInline input `shouldBe` output
+
+  describe "parseSpecialInline" $ do
+    it "parses a hyperlink with single word title" $ do
+      let input =
+            [ Link
+                ("", [], [])
+                [Str "Things"]
+                ( "https://culturedcode.com/things/support/articles/2803573/",
+                  ""
+                )
+            ]
+      let output = Right ("(Things)[https://culturedcode.com/things/support/articles/2803573/]", [])
+      runParser parseSpecialInline input `shouldBe` output
+
+    it "parses a hyperlink with multiple words in the title" $ do
+      let input =
+            [ Link
+                ("", [], [])
+                [Str "Things", Space, Str "API"]
+                ( "https://culturedcode.com/things/support/articles/2803573/",
+                  ""
+                )
+            ]
+      let output = Right ("(Things API)[https://culturedcode.com/things/support/articles/2803573/]", [])
+      runParser parseSpecialInline input `shouldBe` output
+
+    it "fails to parse a hyperlink with no words in the title" $ do
+      let input =
+            [ Link
+                ("", [], [])
+                []
+                ( "https://culturedcode.com/things/support/articles/2803573/",
+                  ""
+                )
+            ]
+      let output = Left ("Expected input Str", Nothing)
+      runParser parseSpecialInline input `shouldBe` output
+
+    it "parses emphasized text correctly " $ do
+      let input =
+            [ Emph [Str "italic", Space, Str "text"]
+            ]
+      let output = Right ("*italic text*", [])
+      runParser parseSpecialInline input `shouldBe` output
+
+    it "parses strong text correctly " $ do
+      let input =
+            [ Strong [Str "bold", Space, Str "text"]
+            ]
+      let output = Right ("**bold text**", [])
+      runParser parseSpecialInline input `shouldBe` output
+
+    it "parses code blocks correctly " $ do
+      let input =
+            [ Code ("", [], []) "code block"
+            ]
+      let output = Right ("`code block`", [])
+      runParser parseSpecialInline input `shouldBe` output
+
+  describe "parseNotesInline" $ do
+    it "parses notes fields with all sorts of special data correctly" $ do
+      let input =
+            [ Str "Blah",
+              Space,
+              Str "notes",
+              Space,
+              Str "blah",
+              Space,
+              Link
+                ("", [], [])
+                [Str "Things", Space, Str "API"]
+                ( "https://culturedcode.com/things/support/articles/2803573/",
+                  ""
+                ),
+              Space,
+              Code ("", [], []) "code block",
+              Space,
+              Emph [Str "italics"],
+              Space,
+              Strong [Str "bold"],
+              Str ".",
+              Space,
+              Link
+                ("", [], [])
+                [Str "http://joeyh.name/blog/"]
+                ("http://joeyh.name/blog/", "")
+            ]
+      let output = Right ("Blah notes blah (Things API)[https://culturedcode.com/things/support/articles/2803573/] `code block` *italics* **bold**. (http://joeyh.name/blog/)[http://joeyh.name/blog/]", [])
+      runParser parseNotesInline input `shouldBe` output

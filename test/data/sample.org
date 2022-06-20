@@ -7,7 +7,7 @@
 
 * Area 2
 ** TODO Todo without a project                            :programming:maths:
-Blah notes blah [[https://culturedcode.com/things/support/articles/2803573/][Things]] ~code block~ /italics/ *bold*.
+Blah notes blah [[https://culturedcode.com/things/support/articles/2803573/][Things API]] ~code block~ /italics/ *bold*. [[http://joeyh.name/blog/]]
 ** TODO Todo without a project with notes without checkboxes
 SCHEDULED: <2022-06-14 Tue>
 Some example notes

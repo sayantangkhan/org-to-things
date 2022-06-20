@@ -33,7 +33,7 @@
     , Space
     , Link
         ( "" , [] , [] )
-        [ Str "Things" ]
+        [ Str "Things" , Space , Str "API" ]
         ( "https://culturedcode.com/things/support/articles/2803573/"
         , ""
         )
@@ -44,6 +44,11 @@
     , Space
     , Strong [ Str "bold" ]
     , Str "."
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "http://joeyh.name/blog/" ]
+        ( "http://joeyh.name/blog/" , "" )
     ]
 , Header
     2

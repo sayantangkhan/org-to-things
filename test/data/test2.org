@@ -1,9 +1,0 @@
-#+STARTUP: indent
-#+STARTUP: overview
-#+OPTIONS: p:t
-#+TITLE: Test Org file
-
-* Top level heading
-DEADLINE: <2022-06-13 Mon> SCHEDULED: <2022-06-10 Fri>
-[[http://www.google.com][Add Todo]]
-Blah blah

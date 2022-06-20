@@ -160,8 +160,8 @@ parseEOLInline = parserConstructor $ \case
   [] -> pure ((), [])
   (x : _) -> Left ("Expected empty input", Just x)
 
-parseStrInline :: T.Text -> InlineParser T.Text
-parseStrInline text = parserConstructor $ \case
+parseSingleStrInline :: T.Text -> InlineParser T.Text
+parseSingleStrInline text = parserConstructor $ \case
   (x@(Strong [Str inner_text]) : xs) ->
     if inner_text == text
       then pure (inner_text, xs)
@@ -170,10 +170,10 @@ parseStrInline text = parserConstructor $ \case
   _ -> Left ("Expected input", Nothing)
 
 parseDeadlineMarkInline :: InlineParser ()
-parseDeadlineMarkInline = void $ parseStrInline "DEADLINE:"
+parseDeadlineMarkInline = void $ parseSingleStrInline "DEADLINE:"
 
 parseScheduledMarkInline :: InlineParser ()
-parseScheduledMarkInline = void $ parseStrInline "SCHEDULED:"
+parseScheduledMarkInline = void $ parseSingleStrInline "SCHEDULED:"
 
 parseDeadlineInline :: InlineParser Deadline
 parseDeadlineInline = parseDeadlineMarkInline *> parseWhitespaceInline *> parseInlineDeadline
@@ -216,6 +216,15 @@ parsePlanningInline = scheduled_then_deadline <|> deadline_then_scheduled <|> on
     only_deadline = do
       deadline <- parseDeadlineInline
       return (Nothing, Just deadline)
+
+parseStrInline :: InlineParser T.Text
+parseStrInline = T.concat <$> some singleParser
+  where
+    singleParser = parserConstructor $ \case
+      (Str inner_text : xs) -> pure (inner_text, xs)
+      (Space : xs) -> pure (" ", xs)
+      (x : _) -> Left ("Expected Str or Space", Just x)
+      _ -> Left ("Expected input Str", Nothing)
 
 -- | A useful parser combinator
 greedyManyTill :: TokenParser t e a -> TokenParser t e end -> TokenParser t e [a]
@@ -279,4 +288,21 @@ parseTodoAndTagsInline = do
     extract (Just x) = x
 
 parseNotesInline :: InlineParser T.Text
-parseNotesInline = undefined
+parseNotesInline = T.concat <$> many combinedParser <* parseEOLInline
+  where
+    combinedParser = parseStrInline <|> parseSpecialInline
+
+parseSpecialInline :: InlineParser T.Text
+parseSpecialInline = parserConstructor $ \case
+  (Link _ text (url, _) : xs) -> do
+    parsed_text <- evalParser (parseStrInline <* parseEOLInline) text
+    return (T.concat ["(", parsed_text, ")[", url, "]"], xs)
+  (Emph text : xs) -> do
+    parsed_text <- evalParser (parseStrInline <* parseEOLInline) text
+    return (T.concat ["*", parsed_text, "*"], xs)
+  (Strong text : xs) -> do
+    parsed_text <- evalParser (parseStrInline <* parseEOLInline) text
+    return (T.concat ["**", parsed_text, "**"], xs)
+  (Code _ text : xs) -> Right (T.concat ["`", text, "`"], xs)
+  (x : _) -> Left ("Expected link", Just x)
+  _ -> Left ("Expected input", Nothing)
