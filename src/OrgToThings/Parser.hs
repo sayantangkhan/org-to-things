@@ -239,12 +239,19 @@ sepBy parser sepParser = parserConstructor innerLambda
         Left _ -> Right ([a], u)
       Left x -> Left x
 
+optional :: TokenParser t e a -> TokenParser t e (Maybe a)
+optional parser = parserConstructor innerLambda
+  where
+    innerLambda s = case runParser parser s of
+      Right (a, u) -> Right (Just a, u)
+      Left _ -> Right (Nothing, s)
+
 parseTodoAndTagsInline :: InlineParser (T.Text, [T.Text])
 parseTodoAndTagsInline = do
   isTodo
   parseWhitespaceInline
   title <- parseTitle
-  tags <- parseTags
+  tags <- extract <$> optional parseTags
   return (title, tags)
   where
     isTodo = parserConstructor $ \case
@@ -266,5 +273,10 @@ parseTodoAndTagsInline = do
       (Str "\160" : xs) -> pure ((), xs)
       (x : _) -> Left ("Expected separator", Just x)
       _ -> Left ("Expected input", Nothing)
-    -- parseTags = sepBy parseTag parseSep <|> const [] <$> parseEOLInline
-    parseTags = sepBy parseTag parseSep <|> ([] <$ parseEOLInline)
+    parseTags = sepBy parseTag parseSep
+    extract :: Maybe [a] -> [a]
+    extract Nothing = []
+    extract (Just x) = x
+
+parseNotesInline :: InlineParser T.Text
+parseNotesInline = undefined

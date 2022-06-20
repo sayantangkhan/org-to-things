@@ -22,14 +22,15 @@ description:         Please see the README on GitHub at <https://github.com/saya
 
 dependencies:
 - base >= 4.7 && < 5
+- safe
 - text
 - pandoc
 - pandoc-types
-- safe
 - mtl
 - transformers
 - data-default
 - extra
+- uri-encode
 
 ghc-options:
 - -Wall
