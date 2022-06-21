@@ -28,6 +28,8 @@ type CharParser = TokenParser Char String
 
 type InlineParser = TokenParser Inline (String, Maybe Inline)
 
+type BlockParser = TokenParser Block (String, Maybe Block)
+
 runParser :: TokenParser t e a -> [t] -> Either e (a, [t])
 runParser = runStateT . unParser
 
@@ -61,6 +63,17 @@ instance Alternative InlineParser where
       (x : _) -> Left ("Unexpected Inline", Just x)
   (<|>) :: InlineParser a -> InlineParser a -> InlineParser a
   a <|> b = TokenParser $ StateT $ \s -> combine (runStateT (unParser a) s) (runStateT (unParser b) s)
+    where
+      combine (Left _) y = y
+      combine x _ = x
+
+instance Alternative BlockParser where
+  empty :: BlockParser a
+  empty = parserConstructor $ \case
+    [] -> Left ("Expected non-empty input", Nothing)
+    (x : _) -> Left ("Unexpected Block", Just x)
+  (<|>) :: BlockParser a -> BlockParser a -> BlockParser a
+  a <|> b = parserConstructor $ \s -> combine (runStateT (unParser a) s) (runStateT (unParser b) s)
     where
       combine (Left _) y = y
       combine x _ = x
@@ -306,3 +319,34 @@ parseSpecialInline = parserConstructor $ \case
   (Code _ text : xs) -> Right (T.concat ["`", text, "`"], xs)
   (x : _) -> Left ("Expected link", Just x)
   _ -> Left ("Expected input", Nothing)
+
+parseSingleChecklistInline :: InlineParser T.Text
+parseSingleChecklistInline = checkMark *> parseNotesInline
+  where
+    checkMark = parserConstructor $ \case
+      (Str "\9744" : Space : xs) -> Right ((), xs)
+      (Str "\9746" : Space : xs) -> Right ((), xs)
+      (x : _) -> Left ("Expected to start with a checkmark", Just x)
+      [] -> Left ("Expected a non-empty item in checklist", Nothing)
+
+parseEOLBlock :: BlockParser ()
+parseEOLBlock = parserConstructor $ \case
+  [] -> pure ((), [])
+  (x : _) -> Left ("Expected empty input", Just x)
+
+parseChecklistBlock :: BlockParser [T.Text]
+parseChecklistBlock = parserConstructor $ \case
+  (BulletList blocks : xs) -> case (evalParser parseChecklistItems (concat blocks)) of
+    Left _ -> Left ("Failed to parse BulletList", Just (BulletList blocks))
+    Right items -> Right (items, xs)
+    where
+      parseChecklistItems = (some parseChecklistItem) <* parseEOLBlock
+      parseChecklistItem = parserConstructor $ \case
+        (Plain item : ys) -> case (evalParser parseSingleChecklistInline item) of
+          Right y -> Right (y, ys)
+          Left (message, Just _) -> Left (message, Just (Plain item))
+          Left (message, Nothing) -> Left (message, Nothing)
+        (x : _) -> Left ("Expected Plain wrapping a checklist item", Just x)
+        [] -> Left ("Expected non-empty blocks", Nothing)
+  (x : _) -> Left ("Expected a BulletList", Just x)
+  [] -> Left ("Expected a Block", Nothing)

@@ -270,3 +270,114 @@ spec = parallel $ do
             ]
       let output = Right ("Blah notes blah (Things API)[https://culturedcode.com/things/support/articles/2803573/] `code block` *italics* **bold**. (http://joeyh.name/blog/)[http://joeyh.name/blog/]", [])
       runParser parseNotesInline input `shouldBe` output
+
+  describe "parseSingleChecklistInline" $ do
+    it "parses a simple checklist item with no fancy markup" $ do
+      let input = [Str "\9744", Space, Str "Blah", Space, Str "2"]
+      let output = Right ("Blah 2", [])
+      runParser parseSingleChecklistInline input `shouldBe` output
+
+    it "parses a checklist item with fancy markup" $ do
+      let input =
+            [ Str "\9744",
+              Space,
+              Str "Blah",
+              Space,
+              Str "3",
+              Space,
+              Code ("", [], []) "code block",
+              Space,
+              Strong [Str "bold"],
+              Space,
+              Str "and",
+              Space,
+              Emph [Str "italics"],
+              Str "."
+            ]
+      let output = Right ("Blah 3 `code block` **bold** and *italics*.", [])
+      runParser parseSingleChecklistInline input `shouldBe` output
+
+    it "fails to parse a checklist item which does not start with a checkmark" $ do
+      let input =
+            [ Str "Blah",
+              Space,
+              Str "3",
+              Space,
+              Code ("", [], []) "code block",
+              Space,
+              Strong [Str "bold"],
+              Space,
+              Str "and",
+              Space,
+              Emph [Str "italics"],
+              Str "."
+            ]
+      let output = Left ("Expected to start with a checkmark", Just $ Str "Blah")
+      runParser parseSingleChecklistInline input `shouldBe` output
+
+  describe "parseChecklistBlock" $ do
+    it "parses a Block corresponding to a checklist" $ do
+      let input =
+            [ BulletList
+                [ [Plain [Str "\9744", Space, Str "Blah"]],
+                  [ Plain
+                      [Str "\9744", Space, Str "Blah", Space, Str "2"]
+                  ],
+                  [ Plain
+                      [ Str "\9744",
+                        Space,
+                        Str "Blah",
+                        Space,
+                        Str "3",
+                        Space,
+                        Code ("", [], []) "code block",
+                        Space,
+                        Strong [Str "bold"],
+                        Space,
+                        Str "and",
+                        Space,
+                        Emph [Str "italics"],
+                        Str "."
+                      ]
+                  ]
+                ]
+            ]
+      let output = Right (["Blah", "Blah 2", "Blah 3 `code block` **bold** and *italics*."], [])
+      runParser parseChecklistBlock input `shouldBe` output
+
+    it "fails to parse an empty checklist" $ do
+      let input =
+            [ BulletList
+                []
+            ]
+      let output = Left ("Failed to parse BulletList", Just (BulletList []))
+      runParser parseChecklistBlock input `shouldBe` output
+
+    it "fails to parse a BulletList with malformed entries" $ do
+      let input =
+            [ BulletList
+                [ [Plain [Str "\9744", Space, Str "Blah"]],
+                  [ Plain
+                      [Str "Blah", Space, Str "2"]
+                  ],
+                  [ Plain
+                      [ Str "\9744",
+                        Space,
+                        Str "Blah",
+                        Space,
+                        Str "3",
+                        Space,
+                        Code ("", [], []) "code block",
+                        Space,
+                        Strong [Str "bold"],
+                        Space,
+                        Str "and",
+                        Space,
+                        Emph [Str "italics"],
+                        Str "."
+                      ]
+                  ]
+                ]
+            ]
+      let output = Left ("Failed to parse BulletList", Just (input !! 0))
+      runParser parseChecklistBlock input `shouldBe` output
