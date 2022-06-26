@@ -40,3 +40,6 @@ data Scheduled = DateTimeS ((Int, Int, Int), (Int, Int)) | DateS (Int, Int, Int)
 
 newtype Deadline = DateD (Int, Int, Int)
   deriving (Show, Eq)
+
+constructTodo :: Text -> [Text] -> Maybe (Maybe Scheduled, Maybe Deadline) -> Maybe Text -> Maybe [Text] -> Heading -> Project -> Area -> Todo
+constructTodo = undefined

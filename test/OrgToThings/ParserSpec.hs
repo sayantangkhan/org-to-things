@@ -381,3 +381,36 @@ spec = parallel $ do
             ]
       let output = Left ("Failed to parse BulletList", Just (input !! 0))
       runParser parseChecklistBlock input `shouldBe` output
+
+  describe "parseNotesBlock" $ do
+    it "parses well formed [Inline] wrapped in Para" $ do
+      let input =
+            [ Para
+                [ Str "Blah",
+                  Space,
+                  Str "notes",
+                  Space,
+                  Str "blah",
+                  Space,
+                  Link
+                    ("", [], [])
+                    [Str "Things", Space, Str "API"]
+                    ( "https://culturedcode.com/things/support/articles/2803573/",
+                      ""
+                    ),
+                  Space,
+                  Code ("", [], []) "code block",
+                  Space,
+                  Emph [Str "italics"],
+                  Space,
+                  Strong [Str "bold"],
+                  Str ".",
+                  Space,
+                  Link
+                    ("", [], [])
+                    [Str "http://joeyh.name/blog/"]
+                    ("http://joeyh.name/blog/", "")
+                ]
+            ]
+      let output = Right ("Blah notes blah (Things API)[https://culturedcode.com/things/support/articles/2803573/] `code block` *italics* **bold**. (http://joeyh.name/blog/)[http://joeyh.name/blog/]", [])
+      runParser parseNotesBlock input `shouldBe` output
