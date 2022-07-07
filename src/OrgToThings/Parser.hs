@@ -269,6 +269,13 @@ optional parser = parserConstructor innerLambda
       Right (a, u) -> Right (Just a, u)
       Left _ -> Right (Nothing, s)
 
+optionalBlocks :: BlockParser ([Block], a) -> BlockParser ([Block], Maybe a)
+optionalBlocks parser = parserConstructor innerLambda
+  where
+    innerLambda s = case runParser s of
+      Right ((b, a), u) -> Right ((b, Just a), u)
+      Left _ -> Right (([], Nothing), s)
+
 parseTodoAndTagsInline :: InlineParser (T.Text, [T.Text])
 parseTodoAndTagsInline = do
   isTodo
@@ -330,16 +337,16 @@ parseSingleChecklistInline = checkMark *> parseNotesInline
       (x : _) -> Left ("Expected to start with a checkmark", Just x)
       [] -> Left ("Expected a non-empty item in checklist", Nothing)
 
-parseEOLBlock :: BlockParser ()
+parseEOLBlock :: BlockParser ([Block], ())
 parseEOLBlock = parserConstructor $ \case
-  [] -> pure ((), [])
+  [] -> pure (([], ()), [])
   (x : _) -> Left ("Expected empty input", Just x)
 
-parseChecklistBlock :: BlockParser [T.Text]
+parseChecklistBlock :: BlockParser ([Block], [T.Text])
 parseChecklistBlock = parserConstructor $ \case
   (BulletList blocks : xs) -> case (evalParser parseChecklistItems (concat blocks)) of
     Left _ -> Left ("Failed to parse BulletList", Just (BulletList blocks))
-    Right items -> Right (items, xs)
+    Right items -> Right (([BulletList blocks], items), xs)
     where
       parseChecklistItems = (some parseChecklistItem) <* parseEOLBlock
       parseChecklistItem = parserConstructor $ \case
@@ -352,38 +359,38 @@ parseChecklistBlock = parserConstructor $ \case
   (x : _) -> Left ("Expected a BulletList", Just x)
   [] -> Left ("Expected a Block", Nothing)
 
-parseNotesBlock :: BlockParser T.Text
+parseNotesBlock :: BlockParser ([Block], T.Text)
 parseNotesBlock = parserConstructor $ \case
   (Para inlines : xs) -> case (evalParser parseNotesInline inlines) of
     Left (message, _) -> Left (message, Just $ Para inlines)
-    Right notes -> Right (notes, xs)
+    Right notes -> Right (([Para inlines], notes), xs)
   (x : _) -> Left ("Expected Para", Just x)
   [] -> Left ("Expected a Block", Nothing)
 
-parsePlanningBlock :: BlockParser (Maybe Scheduled, Maybe Deadline)
+parsePlanningBlock :: BlockParser ([Block], (Maybe Scheduled, Maybe Deadline))
 parsePlanningBlock = parserConstructor $ \case
   (Plain inlines : xs) -> case (evalParser parsePlanningInline inlines) of
     Left (message, _) -> Left (message, Just $ Plain inlines)
-    Right planningInfo -> Right (planningInfo, xs)
+    Right planningInfo -> Right (([Plain inlines], planningInfo), xs)
   (x : _) -> Left ("Expected Plain", Just x)
   [] -> Left ("Expected a Block", Nothing)
 
-parseTodoAndTagsBlock :: BlockParser (T.Text, [T.Text])
+parseTodoAndTagsBlock :: BlockParser ([Block], (T.Text, [T.Text]))
 parseTodoAndTagsBlock = parserConstructor $ \case
   (Para inlines : xs) -> case (evalParser parseTodoAndTagsInline inlines) of
     Left (message, _) -> Left (message, Just $ Para inlines)
-    Right todoAndTags -> Right (todoAndTags, xs)
+    Right todoAndTags -> Right (([Para inlines], todoAndTags), xs)
   (x : _) -> Left ("Expected Para", Just x)
   [] -> Left ("Expected a Block", Nothing)
 
 -- | TODO: Generalize this function
-parseSingleTodoWithContext :: Area -> Project -> Heading -> BlockParser [Block]
+parseSingleTodoWithContext :: Area -> Project -> Heading -> BlockParser ([Block], Todo)
 parseSingleTodoWithContext area project heading = do
-  (title, tags) <- parseTodoAndTagsBlock
-  optional_planning <- optional parsePlanningBlock
-  optional_notes <- optional parseNotesBlock
-  optional_checklist <- optional parseChecklistBlock
-  return $ constructTodo title tags optional_planning optional_notes optional_checklist heading project area
+  (titleBlocks, (title, tags)) <- parseTodoAndTagsBlock
+  (planning_blocks, optional_planning) <- optionalBlocks parsePlanningBlock
+  (notes_blocks, optional_notes) <- optionalBlocks parseNotesBlock
+  (checklist_blocks, optional_checklist) <- optionalBlocks parseChecklistBlock
+  return $ (titleBlocks ++ planning_blocks ++ notes_blocks ++ checklist_blocks, constructTodo title tags optional_planning optional_notes optional_checklist heading project area)
 
 -- parseTodoUnderHeading :: Area -> Project -> Heading -> BlockParser [Block]
 -- parseTodoUnderHeading area project heading = parserConstructor $ \case

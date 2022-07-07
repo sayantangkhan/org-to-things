@@ -342,7 +342,7 @@ spec = parallel $ do
                   ]
                 ]
             ]
-      let output = Right (["Blah", "Blah 2", "Blah 3 `code block` **bold** and *italics*."], [])
+      let output = Right ((input, ["Blah", "Blah 2", "Blah 3 `code block` **bold** and *italics*."]), [])
       runParser parseChecklistBlock input `shouldBe` output
 
     it "fails to parse an empty checklist" $ do
@@ -412,5 +412,5 @@ spec = parallel $ do
                     ("http://joeyh.name/blog/", "")
                 ]
             ]
-      let output = Right ("Blah notes blah (Things API)[https://culturedcode.com/things/support/articles/2803573/] `code block` *italics* **bold**. (http://joeyh.name/blog/)[http://joeyh.name/blog/]", [])
+      let output = Right ((input, "Blah notes blah (Things API)[https://culturedcode.com/things/support/articles/2803573/] `code block` *italics* **bold**. (http://joeyh.name/blog/)[http://joeyh.name/blog/]"), [])
       runParser parseNotesBlock input `shouldBe` output
