@@ -272,7 +272,7 @@ optional parser = parserConstructor innerLambda
 optionalBlocks :: BlockParser ([Block], a) -> BlockParser ([Block], Maybe a)
 optionalBlocks parser = parserConstructor innerLambda
   where
-    innerLambda s = case runParser s of
+    innerLambda s = case runParser parser s of
       Right ((b, a), u) -> Right ((b, Just a), u)
       Left _ -> Right (([], Nothing), s)
 
