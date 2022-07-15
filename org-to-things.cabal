@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.7.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 
@@ -30,6 +30,7 @@ library
   exposed-modules:
       OrgToThings
       OrgToThings.Definitions
+      OrgToThings.Linkgen
       OrgToThings.Parser
   other-modules:
       Paths_org_to_things
