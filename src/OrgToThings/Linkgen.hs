@@ -28,7 +28,9 @@ createTodoLink todo =
     ]
   where
     genTitle = mappend "title=" $ encodeText $ todo_title todo
-    genNotes = mappend "notes=" $ encodeText $ todo_notes todo
+    genNotes = case todo_notes todo of
+      Just notes -> mappend "notes=" $ encodeText notes
+      Nothing -> ""
     genChecklistItems = case todo_checklist todo of
       [] -> ""
       checklist -> mappend "checklist-items=" $ encodeText $ intersperse "\n" checklist
