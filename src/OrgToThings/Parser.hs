@@ -16,7 +16,7 @@ import Data.Bifunctor (first)
 import Data.Char (isDigit)
 import qualified Data.Text as T
 import OrgToThings.Definitions
-import OrgToThings.Linkgen (createTodoLink)
+import OrgToThings.Linkgen (createProjectLink, createTodoLink)
 import Text.Pandoc.Definition
 
 -- | Generalized parser Monad, where t is the token type, e is the error type, and a is the return type.
@@ -440,15 +440,23 @@ parseTitleBlock = parserConstructor $ \case
   (x : _) -> Left ("Expected Header 3", Just x)
   [] -> Left ("Expected a Block", Nothing)
 
--- | TODO: Generalize this function
-parseTodoWithProjectAndHeading :: Area -> Project -> Heading -> BlockParser [Block]
-parseTodoWithProjectAndHeading area project heading = do
+parseSingleTodoWithProjectAndHeading :: Area -> Project -> Heading -> BlockParser [Block]
+parseSingleTodoWithProjectAndHeading area project heading = do
   (titleBlocks, (title, tags)) <- parseTodoAndTagsBlock
   (planning_blocks, optional_planning) <- optionalBlocks parsePlanningBlock
   (notes_blocks, optional_notes) <- optionalBlocks parseNotesBlock
   (checklist_blocks, optional_checklist) <- optionalBlocks parseChecklistBlock
+  _ <- parseEOLBlock
   let todo = constructTodo title tags optional_planning optional_notes optional_checklist (Just heading) (Just project) area
   return $ titleBlocks ++ planning_blocks ++ notes_blocks ++ checklist_blocks ++ linkFromTodo todo
+
+parseTodoWithProjectAndHeading :: Area -> Project -> Heading -> BlockParser [Block]
+parseTodoWithProjectAndHeading area project heading = parserConstructor $ \case
+  (OrderedList attr blocks : xs) -> case (sequence $ (evalParser $ parseSingleTodoWithProjectAndHeading area project heading) <$> blocks) of
+    Right transformedBlocks -> Right ([OrderedList attr transformedBlocks], xs)
+    Left m -> Left m
+  (x : _) -> Left ("Expected OrderedList", Just x)
+  [] -> Left ("Expected a Block", Nothing)
 
 parseTodoWithProject :: Area -> Project -> BlockParser [Block]
 parseTodoWithProject area project = do
@@ -468,6 +476,17 @@ parseTodoInArea area = do
   let todo = constructTodo title tags optional_planning optional_notes optional_checklist Nothing Nothing area
   return $ titleBlocks ++ planning_blocks ++ notes_blocks ++ checklist_blocks ++ linkFromTodo todo
 
+parseHeadingMetadata :: Area -> Project -> BlockParser ([Block], Heading)
+parseHeadingMetadata area project = do
+  (metadataBlocks, title) <- parseTitleBlock
+  return (metadataBlocks, Heading title project area)
+
+parseHeading :: Area -> Project -> BlockParser [Block]
+parseHeading area project = do
+  (titleBlocks, heading) <- parseHeadingMetadata area project
+  nestedBlocks <- concat <$> many (parseTodoWithProjectAndHeading area project heading)
+  return $ titleBlocks ++ nestedBlocks
+
 parseProjectMetadata :: Area -> BlockParser ([Block], Project)
 parseProjectMetadata area = do
   (titleBlocks, (title, tags)) <- parseTitleAndTagsBlock
@@ -476,16 +495,11 @@ parseProjectMetadata area = do
   let project = constructProject title tags optional_planning optional_notes area
   return (titleBlocks ++ planning_blocks ++ notes_blocks ++ linkFromProject project, project)
 
-parseHeadingMetadata :: Area -> Project -> BlockParser ([Block], Heading)
-parseHeadingMetadata area project = do
-  (titleBlocks, title) <- parseTitleBlock
-  return (titleBlocks, Heading title project area)
-
-parseHeading :: Area -> Project -> BlockParser [Block]
-parseHeading area project = do
-  (titleBlocks, heading) <- parseHeadingMetadata area project
-  nestedBlocks <- concat <$> many (parseTodoWithProjectAndHeading area project heading)
-  return $ titleBlocks ++ nestedBlocks
+parseProject :: Area -> BlockParser [Block]
+parseProject area = do
+  (metadataBlock, project) <- parseProjectMetadata area
+  nestedBlocks <- concat <$> many (parseHeading area project <|> parseTodoWithProject area project)
+  return $ metadataBlock ++ nestedBlocks
 
 parseAreaMetadata :: BlockParser ([Block], Area)
 parseAreaMetadata = parserConstructor $ \case
@@ -495,16 +509,14 @@ parseAreaMetadata = parserConstructor $ \case
   (x : _) -> Left ("Expected Header 1", Just x)
   [] -> Left ("Expected a Block", Nothing)
 
--- | TODO: Add more alternatives
 parseArea :: BlockParser [Block]
 parseArea = do
-  (titleBlocks, area) <- parseAreaMetadata
-  nestedBlocks <- concat <$> many (parseTodoInArea area)
-  return $ titleBlocks ++ nestedBlocks
+  (metadataBlocks, area) <- parseAreaMetadata
+  nestedBlocks <- concat <$> many (parseProject area <|> parseTodoInArea area)
+  return $ metadataBlocks ++ nestedBlocks
 
--- parseTodoUnderHeading :: Area -> Project -> Heading -> BlockParser [Block]
--- parseTodoUnderHeading area project heading = parserConstructor $ \case
---   (OrderedList params listOfBlocks : xs) ->
+parseAndTransformBlocks :: Pandoc -> Either (String, Maybe Block) Pandoc
+parseAndTransformBlocks (Pandoc meta blocks) = Pandoc meta <$> evalParser (concat <$> many parseArea) blocks
 
 linkFromTodo :: Todo -> [Block]
 linkFromTodo todo =
@@ -517,4 +529,11 @@ linkFromTodo todo =
   ]
 
 linkFromProject :: Project -> [Block]
-linkFromProject = undefined
+linkFromProject project =
+  [ Para
+      [ Link
+          ("", [], [])
+          [Str "Add", Space, Str "Project"]
+          (createProjectLink project, "")
+      ]
+  ]

@@ -379,7 +379,7 @@ spec = parallel $ do
                   ]
                 ]
             ]
-      let output = Left ("Failed to parse BulletList", Just (input !! 0))
+      let output = Left ("Failed to parse BulletList", Just (head input))
       runParser parseChecklistBlock input `shouldBe` output
 
   describe "parseNotesBlock" $ do
@@ -414,3 +414,92 @@ spec = parallel $ do
             ]
       let output = Right ((input, "Blah notes blah (Things API)[https://culturedcode.com/things/support/articles/2803573/] `code block` *italics* **bold**. (http://joeyh.name/blog/)[http://joeyh.name/blog/]"), [])
       runParser parseNotesBlock input `shouldBe` output
+
+  describe "parseTodoWithProjectAndHeading" $ do
+    it "parses a Todo nested in Project and Heading and returns the Todo block with link appended" $ do
+      let input_todo =
+            [ Para
+                [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                  Space,
+                  Str "Todo",
+                  Space,
+                  Str "with",
+                  Space,
+                  Str "notes",
+                  Space,
+                  Str "without",
+                  Space,
+                  Str "checkboxes",
+                  Space,
+                  Span
+                    ("", ["tag"], [("tag-name", "programming")])
+                    [SmallCaps [Str "programming"]]
+                ],
+              Plain
+                [ Strong [Str "SCHEDULED:"],
+                  Space,
+                  Emph [Str "<2022-06-15 Wed 11:34>"]
+                ],
+              Para
+                [Str "Some", Space, Str "example", Space, Str "notes"]
+            ]
+
+      let area = Area "Personal"
+      let project = constructProject "Home setup" ["math"] Nothing Nothing area
+      let heading = Heading "Heading 1" project area
+      let output_todo =
+            input_todo
+              ++ [ Para
+                     [ Link
+                         ("", [], [])
+                         [Str "Add", Space, Str "Todo"]
+                         ("things:///add?title=Todo%20with%20notes%20without%20checkboxes&notes=Some%20example%20notes&when=2022-6-15@11:34&tags=programming&list=Home%20setup&heading=Heading%201", "")
+                     ]
+                 ]
+      let input = [OrderedList (1, DefaultStyle, DefaultDelim) [input_todo]]
+      let output = Right ([OrderedList (1, DefaultStyle, DefaultDelim) [output_todo]], [])
+      runParser (parseTodoWithProjectAndHeading area project heading) input `shouldBe` output
+
+    it "parses mutliples Todos nested in Project and Heading and returns the Todo blocks with link appended" $ do
+      let input_todo =
+            [ Para
+                [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                  Space,
+                  Str "Todo",
+                  Space,
+                  Str "with",
+                  Space,
+                  Str "notes",
+                  Space,
+                  Str "without",
+                  Space,
+                  Str "checkboxes",
+                  Space,
+                  Span
+                    ("", ["tag"], [("tag-name", "programming")])
+                    [SmallCaps [Str "programming"]]
+                ],
+              Plain
+                [ Strong [Str "SCHEDULED:"],
+                  Space,
+                  Emph [Str "<2022-06-15 Wed 11:34>"]
+                ],
+              Para
+                [Str "Some", Space, Str "example", Space, Str "notes"]
+            ]
+
+      let area = Area "Personal"
+      let project = constructProject "Home setup" ["math"] Nothing Nothing area
+      let heading = Heading "Heading 1" project area
+      let output_todo =
+            input_todo
+              ++ [ Para
+                     [ Link
+                         ("", [], [])
+                         [Str "Add", Space, Str "Todo"]
+                         ("things:///add?title=Todo%20with%20notes%20without%20checkboxes&notes=Some%20example%20notes&when=2022-6-15@11:34&tags=programming&list=Home%20setup&heading=Heading%201", "")
+                     ]
+                 ]
+      let input = [OrderedList (1, DefaultStyle, DefaultDelim) [input_todo, input_todo]]
+      let output = Right ([OrderedList (1, DefaultStyle, DefaultDelim) [output_todo, output_todo]], [])
+      runParser (parseTodoWithProjectAndHeading area project heading) input `shouldBe` output

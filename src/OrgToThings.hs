@@ -1,23 +1,33 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module OrgToThings
-  ( convertToHTML,
-    readFileAsArg,
-    parseOrgToAST,
+  ( mainFunc,
   )
 where
 
-import Control.Exception (try)
-import qualified Data.Text as T
+import Control.Monad.Error.Class (MonadError (throwError))
 import qualified Data.Text.IO as TIO
-import GHC.IO.Exception (IOException)
+import OrgToThings.Parser (parseAndTransformBlocks)
 import Safe (headMay)
+import System.Environment
+import System.Exit
 import Text.Pandoc
 
--- | This should ideally complain len args > 1.
-readFileAsArg :: [String] -> Maybe (IO (Either IOException T.Text))
-readFileAsArg args = try . TIO.readFile <$> headMay args
-
-parseOrgToAST :: T.Text -> Either PandocError Pandoc
-parseOrgToAST rawOrg = runPure $ readOrg def rawOrg
-
-convertToHTML :: IO ()
-convertToHTML = putStrLn "someFunc"
+mainFunc :: IO ()
+mainFunc = do
+  args <- getArgs
+  let optHead = headMay args
+  case optHead of
+    Nothing -> do
+      putStrLn "Expected an input file"
+      exitFailure
+    Just filename -> do
+      agendaSource <- TIO.readFile filename
+      result <- runIO $ do
+        agenda <- readOrg def agendaSource
+        let parsedAndTransformed = parseAndTransformBlocks agenda
+        case parsedAndTransformed of
+          Left _ -> writeOrg def agenda
+          Right transformedAgenda -> writeOrg def transformedAgenda
+      html <- handleError result
+      TIO.putStrLn html

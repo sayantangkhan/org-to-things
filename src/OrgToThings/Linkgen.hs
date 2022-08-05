@@ -4,7 +4,7 @@ module OrgToThings.Linkgen where
 
 import Data.Text (Text, pack)
 import Network.URI.Encode (encodeText)
-import OrgToThings.Definitions (Deadline (..), Heading (heading_title), Scheduled (..), Todo (todo_area, todo_checklist, todo_deadline, todo_heading, todo_notes, todo_project, todo_scheduled, todo_tags, todo_title), area_title, project_title)
+import OrgToThings.Definitions (Deadline (..), Heading (heading_title), Project (..), Scheduled (..), Todo (todo_area, todo_checklist, todo_deadline, todo_heading, todo_notes, todo_project, todo_scheduled, todo_tags, todo_title), area_title, project_title)
 
 -- Also implement error detection
 createTodoLink :: Todo -> Text
@@ -49,6 +49,39 @@ createTodoLink todo =
     genHeading = case todo_heading todo of
       Just heading -> mappend "heading=" $ encodeText $ heading_title heading
       Nothing -> ""
+
+createProjectLink :: Project -> Text
+createProjectLink project =
+  mconcat
+    [ "things:///add-project?",
+      intersperse
+        "&"
+        ( filter
+            (/= "")
+            [ genTitle,
+              genNotes,
+              genWhen,
+              genDeadline,
+              genTags,
+              genArea
+            ]
+        )
+    ]
+  where
+    genTitle = mappend "title=" $ encodeText $ project_title project
+    genNotes = case project_notes project of
+      Just notes -> mappend "notes=" $ encodeText notes
+      Nothing -> ""
+    genWhen = case project_scheduled project of
+      Just scheduled -> mappend "when=" $ scheduledToString scheduled
+      Nothing -> ""
+    genDeadline = case project_deadline project of
+      Just deadline -> mappend "deadline=" $ deadlineToString deadline
+      Nothing -> ""
+    genTags = case project_tags project of
+      [] -> ""
+      tags -> mappend "tags=" $ encodeText $ intersperse "," tags
+    genArea = mappend "area=" $ encodeText $ area_title $ project_area project
 
 intersperse :: Text -> [Text] -> Text
 intersperse _ [] = ""

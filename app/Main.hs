@@ -1,6 +1,6 @@
 module Main where
 
-import OrgToThings (convertToHTML)
+import OrgToThings (mainFunc)
 
 main :: IO ()
-main = convertToHTML
+main = mainFunc
