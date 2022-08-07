@@ -460,7 +460,7 @@ spec = parallel $ do
       let output = Right ([OrderedList (1, DefaultStyle, DefaultDelim) [output_todo]], [])
       runParser (parseTodoWithProjectAndHeading area project heading) input `shouldBe` output
 
-    it "parses mutliples Todos nested in Project and Heading and returns the Todo blocks with link appended" $ do
+    it "parses mutliple Todos nested in Project and Heading and returns the Todo blocks with link appended" $ do
       let input_todo =
             [ Para
                 [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
@@ -503,3 +503,203 @@ spec = parallel $ do
       let input = [OrderedList (1, DefaultStyle, DefaultDelim) [input_todo, input_todo]]
       let output = Right ([OrderedList (1, DefaultStyle, DefaultDelim) [output_todo, output_todo]], [])
       runParser (parseTodoWithProjectAndHeading area project heading) input `shouldBe` output
+
+    it "fails to parse an OrderedList with a malformed Todo" $ do
+      let input_todo1 =
+            [ Para
+                [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                  Space,
+                  Str "Todo",
+                  Space,
+                  Str "with",
+                  Space,
+                  Str "notes",
+                  Space,
+                  Str "without",
+                  Space,
+                  Str "checkboxes",
+                  Space,
+                  Span
+                    ("", ["tag"], [("tag-name", "programming")])
+                    [SmallCaps [Str "programming"]]
+                ],
+              Plain
+                [ Strong [Str "SCHEDULED:"],
+                  Space,
+                  Emph [Str "<2022-06-15 Wed 11:34>"]
+                ],
+              Para
+                [Str "Some", Space, Str "example", Space, Str "notes"]
+            ]
+      let input_todo2 =
+            [ Para
+                [ Str "Todo",
+                  Space,
+                  Str "with",
+                  Space,
+                  Str "notes",
+                  Space,
+                  Str "without",
+                  Space,
+                  Str "checkboxes",
+                  Space,
+                  Span
+                    ("", ["tag"], [("tag-name", "programming")])
+                    [SmallCaps [Str "programming"]]
+                ],
+              Plain
+                [ Strong [Str "SCHEDULED:"],
+                  Space,
+                  Emph [Str "<2022-06-15 Wed 11:34>"]
+                ],
+              Para
+                [Str "Some", Space, Str "example", Space, Str "notes"]
+            ]
+
+      let area = Area "Personal"
+      let project = constructProject "Home setup" ["math"] Nothing Nothing area
+      let heading = Heading "Heading 1" project area
+      let input = [OrderedList (1, DefaultStyle, DefaultDelim) [input_todo1, input_todo2]]
+      let output = Left ("Expected 'TODO'", Just $ head input_todo2)
+      runParser (parseTodoWithProjectAndHeading area project heading) input `shouldBe` output
+
+  describe "parseHeading" $ do
+    it "parses a heading and nested Todos and appends the appropriate link after each Todo" $ do
+      let input_blocks =
+            [ Header
+                3
+                ("heading-1", [], [])
+                [Str "Heading", Space, Str "1"],
+              OrderedList
+                (1, DefaultStyle, DefaultDelim)
+                [ [ Para
+                      [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                        Space,
+                        Str "Todo",
+                        Space,
+                        Str "with",
+                        Space,
+                        Str "notes",
+                        Space,
+                        Str "without",
+                        Space,
+                        Str "checkboxes",
+                        Space,
+                        Span
+                          ("", ["tag"], [("tag-name", "programming")])
+                          [SmallCaps [Str "programming"]]
+                      ],
+                    Plain
+                      [ Strong [Str "SCHEDULED:"],
+                        Space,
+                        Emph [Str "<2022-06-15 Wed 11:34>"]
+                      ],
+                    Para
+                      [Str "Some", Space, Str "example", Space, Str "notes"]
+                  ],
+                  [ Para
+                      [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                        Space,
+                        Str "Todo",
+                        Space,
+                        Str "with",
+                        Space,
+                        Str "notes",
+                        Space,
+                        Str "and",
+                        Space,
+                        Str "checkboxes"
+                      ],
+                    Plain
+                      [ Strong [Str "SCHEDULED:"],
+                        Space,
+                        Emph [Str "<2022-06-14 Tue>"]
+                      ],
+                    Para [Str "Some", Space, Str "notes"],
+                    BulletList
+                      [ [Plain [Str "\9744", Space, Str "Blah"]],
+                        [ Plain
+                            [Str "\9744", Space, Str "Blah", Space, Str "2"]
+                        ]
+                      ]
+                  ]
+                ]
+            ]
+
+      let area = Area "Personal"
+      let project = constructProject "Home setup" ["math"] Nothing Nothing area
+      let output_blocks =
+            [ Header
+                3
+                ("heading-1", [], [])
+                [Str "Heading", Space, Str "1"],
+              OrderedList
+                (1, DefaultStyle, DefaultDelim)
+                [ [ Para
+                      [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                        Space,
+                        Str "Todo",
+                        Space,
+                        Str "with",
+                        Space,
+                        Str "notes",
+                        Space,
+                        Str "without",
+                        Space,
+                        Str "checkboxes",
+                        Space,
+                        Span
+                          ("", ["tag"], [("tag-name", "programming")])
+                          [SmallCaps [Str "programming"]]
+                      ],
+                    Plain
+                      [ Strong [Str "SCHEDULED:"],
+                        Space,
+                        Emph [Str "<2022-06-15 Wed 11:34>"]
+                      ],
+                    Para
+                      [Str "Some", Space, Str "example", Space, Str "notes"],
+                    Para
+                      [ Link
+                          ("", [], [])
+                          [Str "Add", Space, Str "Todo"]
+                          ("things:///add?title=Todo%20with%20notes%20without%20checkboxes&notes=Some%20example%20notes&when=2022-6-15@11:34&tags=programming&list=Home%20setup&heading=Heading%201", "")
+                      ]
+                  ],
+                  [ Para
+                      [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                        Space,
+                        Str "Todo",
+                        Space,
+                        Str "with",
+                        Space,
+                        Str "notes",
+                        Space,
+                        Str "and",
+                        Space,
+                        Str "checkboxes"
+                      ],
+                    Plain
+                      [ Strong [Str "SCHEDULED:"],
+                        Space,
+                        Emph [Str "<2022-06-14 Tue>"]
+                      ],
+                    Para [Str "Some", Space, Str "notes"],
+                    BulletList
+                      [ [Plain [Str "\9744", Space, Str "Blah"]],
+                        [ Plain
+                            [Str "\9744", Space, Str "Blah", Space, Str "2"]
+                        ]
+                      ],
+                    Para
+                      [ Link
+                          ("", [], [])
+                          [Str "Add", Space, Str "Todo"]
+                          ("things:///add?title=Todo%20with%20notes%20and%20checkboxes&notes=Some%20notes&checklist-items=Blah%0ABlah%202&when=2022-6-14&list=Home%20setup&heading=Heading%201", "")
+                      ]
+                  ]
+                ]
+            ]
+
+      let output = Right (output_blocks, [])
+      runParser (parseHeading area project) input_blocks `shouldBe` output

@@ -484,8 +484,8 @@ parseHeadingMetadata area project = do
 parseHeading :: Area -> Project -> BlockParser [Block]
 parseHeading area project = do
   (titleBlocks, heading) <- parseHeadingMetadata area project
-  nestedBlocks <- concat <$> many (parseTodoWithProjectAndHeading area project heading)
-  return $ titleBlocks ++ nestedBlocks
+  nestedBlock <- parseTodoWithProjectAndHeading area project heading
+  return $ titleBlocks ++ nestedBlock
 
 parseProjectMetadata :: Area -> BlockParser ([Block], Project)
 parseProjectMetadata area = do
