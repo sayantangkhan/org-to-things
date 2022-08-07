@@ -703,3 +703,832 @@ spec = parallel $ do
 
       let output = Right (output_blocks, [])
       runParser (parseHeading area project) input_blocks `shouldBe` output
+
+  describe "parseTodoWithProject" $ do
+    it "parses a standalone Todo in a project" $ do
+      let input_blocks =
+            [ Header
+                3
+                ("sell-yoga-laptop", [], [])
+                [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                  Space,
+                  Str "Sell",
+                  Space,
+                  Str "yoga",
+                  Space,
+                  Str "laptop"
+                ],
+              Header
+                3
+                ("buy-mac-mini", [], [])
+                [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                  Space,
+                  Str "Buy",
+                  Space,
+                  Str "Mac",
+                  Space,
+                  Str "mini"
+                ],
+              Para
+                [ Str "Also",
+                  Space,
+                  Str "buy",
+                  Space,
+                  Str "accessories",
+                  Space,
+                  Str "like",
+                  Space,
+                  Str "trackpad"
+                ]
+            ]
+      let area = Area "Personal"
+      let project = constructProject "Migrate desktop to Mac" ["programming", "math"] Nothing Nothing area
+      let output_blocks =
+            [ Header
+                3
+                ("sell-yoga-laptop", [], [])
+                [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                  Space,
+                  Str "Sell",
+                  Space,
+                  Str "yoga",
+                  Space,
+                  Str "laptop"
+                ],
+              Para [Link ("", [], []) [Str "Add", Space, Str "Todo"] ("things:///add?title=Sell%20yoga%20laptop&list=Migrate%20desktop%20to%20Mac", "")]
+            ]
+      let tail_blocks =
+            [ Header
+                3
+                ("buy-mac-mini", [], [])
+                [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                  Space,
+                  Str "Buy",
+                  Space,
+                  Str "Mac",
+                  Space,
+                  Str "mini"
+                ],
+              Para
+                [ Str "Also",
+                  Space,
+                  Str "buy",
+                  Space,
+                  Str "accessories",
+                  Space,
+                  Str "like",
+                  Space,
+                  Str "trackpad"
+                ]
+            ]
+      let output = Right (output_blocks, tail_blocks)
+      runParser (parseTodoWithProject area project) input_blocks `shouldBe` output
+
+  describe "parseProject" $ do
+    it "parses a Project block with metadata and nested Todos" $ do
+      let input_blocks =
+            [ Header
+                2
+                ("migrate-desktop-to-mac", [], [])
+                [ Str "Migrate",
+                  Space,
+                  Str "desktop",
+                  Space,
+                  Str "to",
+                  Space,
+                  Str "Mac",
+                  Space,
+                  Span
+                    ("", ["tag"], [("tag-name", "programming")])
+                    [SmallCaps [Str "programming"]],
+                  Str "\160",
+                  Span
+                    ("", ["tag"], [("tag-name", "math")])
+                    [SmallCaps [Str "math"]]
+                ],
+              Plain
+                [ Strong [Str "DEADLINE:"],
+                  Space,
+                  Emph [Str "<2022-06-18 Sat>"],
+                  Space,
+                  Strong [Str "SCHEDULED:"],
+                  Space,
+                  Emph [Str "<2022-06-14 Tue>"]
+                ],
+              Para
+                [Str "Some", Space, Str "notes", Space, Str "here"],
+              Header
+                3
+                ("sell-yoga-laptop", [], [])
+                [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                  Space,
+                  Str "Sell",
+                  Space,
+                  Str "yoga",
+                  Space,
+                  Str "laptop"
+                ],
+              Header
+                3
+                ("buy-mac-mini", [], [])
+                [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                  Space,
+                  Str "Buy",
+                  Space,
+                  Str "Mac",
+                  Space,
+                  Str "mini"
+                ],
+              Para
+                [ Str "Also",
+                  Space,
+                  Str "buy",
+                  Space,
+                  Str "accessories",
+                  Space,
+                  Str "like",
+                  Space,
+                  Str "trackpad"
+                ]
+            ]
+      let area = Area "Personal"
+      let output_blocks =
+            [ Header
+                2
+                ("migrate-desktop-to-mac", [], [])
+                [ Str "Migrate",
+                  Space,
+                  Str "desktop",
+                  Space,
+                  Str "to",
+                  Space,
+                  Str "Mac",
+                  Space,
+                  Span
+                    ("", ["tag"], [("tag-name", "programming")])
+                    [SmallCaps [Str "programming"]],
+                  Str "\160",
+                  Span
+                    ("", ["tag"], [("tag-name", "math")])
+                    [SmallCaps [Str "math"]]
+                ],
+              Plain
+                [ Strong [Str "DEADLINE:"],
+                  Space,
+                  Emph [Str "<2022-06-18 Sat>"],
+                  Space,
+                  Strong [Str "SCHEDULED:"],
+                  Space,
+                  Emph [Str "<2022-06-14 Tue>"]
+                ],
+              Para
+                [Str "Some", Space, Str "notes", Space, Str "here"],
+              Para [Link ("", [], []) [Str "Add", Space, Str "Project"] ("things:///add-project?title=Migrate%20desktop%20to%20Mac&notes=Some%20notes%20here&when=2022-6-14&deadline=2022-6-18&tags=programming%2Cmath&area=Personal", "")],
+              Header
+                3
+                ("sell-yoga-laptop", [], [])
+                [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                  Space,
+                  Str "Sell",
+                  Space,
+                  Str "yoga",
+                  Space,
+                  Str "laptop"
+                ],
+              Para [Link ("", [], []) [Str "Add", Space, Str "Todo"] ("things:///add?title=Sell%20yoga%20laptop&list=Migrate%20desktop%20to%20Mac", "")],
+              Header
+                3
+                ("buy-mac-mini", [], [])
+                [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                  Space,
+                  Str "Buy",
+                  Space,
+                  Str "Mac",
+                  Space,
+                  Str "mini"
+                ],
+              Para
+                [ Str "Also",
+                  Space,
+                  Str "buy",
+                  Space,
+                  Str "accessories",
+                  Space,
+                  Str "like",
+                  Space,
+                  Str "trackpad"
+                ],
+              Para [Link ("", [], []) [Str "Add", Space, Str "Todo"] ("things:///add?title=Buy%20Mac%20mini&notes=Also%20buy%20accessories%20like%20trackpad&list=Migrate%20desktop%20to%20Mac", "")]
+            ]
+      let output = Right (output_blocks, [])
+      runParser (parseProject area) input_blocks `shouldBe` output
+
+    it "parses a Project with metadata, nested Todos and headings" $ do
+      let input_blocks =
+            [ Header
+                2
+                ("home-setup", [], [])
+                [ Str "Home",
+                  Space,
+                  Str "setup",
+                  Space,
+                  Span
+                    ("", ["tag"], [("tag-name", "math")])
+                    [SmallCaps [Str "math"]]
+                ],
+              Header
+                3
+                ("cleanup-kitchen", [], [])
+                [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                  Space,
+                  Str "Cleanup",
+                  Space,
+                  Str "kitchen"
+                ],
+              Plain
+                [ Strong [Str "DEADLINE:"],
+                  Space,
+                  Emph [Str "<2022-06-16 Thu>"],
+                  Space,
+                  Strong [Str "SCHEDULED:"],
+                  Space,
+                  Emph [Str "<2022-06-14 Tue>"]
+                ],
+              Header
+                3
+                ("heading-1", [], [])
+                [Str "Heading", Space, Str "1"],
+              OrderedList
+                (1, DefaultStyle, DefaultDelim)
+                [ [ Para
+                      [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                        Space,
+                        Str "Todo",
+                        Space,
+                        Str "with",
+                        Space,
+                        Str "notes",
+                        Space,
+                        Str "without",
+                        Space,
+                        Str "checkboxes",
+                        Space,
+                        Span
+                          ("", ["tag"], [("tag-name", "programming")])
+                          [SmallCaps [Str "programming"]]
+                      ],
+                    Plain
+                      [ Strong [Str "SCHEDULED:"],
+                        Space,
+                        Emph [Str "<2022-06-15 Wed 11:34>"]
+                      ],
+                    Para
+                      [Str "Some", Space, Str "example", Space, Str "notes"]
+                  ],
+                  [ Para
+                      [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                        Space,
+                        Str "Todo",
+                        Space,
+                        Str "with",
+                        Space,
+                        Str "notes",
+                        Space,
+                        Str "and",
+                        Space,
+                        Str "checkboxes"
+                      ],
+                    Plain
+                      [ Strong [Str "SCHEDULED:"],
+                        Space,
+                        Emph [Str "<2022-06-14 Tue>"]
+                      ],
+                    Para [Str "Some", Space, Str "notes"],
+                    BulletList
+                      [ [Plain [Str "\9744", Space, Str "Blah"]],
+                        [ Plain
+                            [Str "\9744", Space, Str "Blah", Space, Str "2"]
+                        ]
+                      ]
+                  ]
+                ],
+              Header
+                3
+                ("heading-2", [], [])
+                [Str "Heading", Space, Str "2"],
+              OrderedList
+                (1, DefaultStyle, DefaultDelim)
+                [ [ Para
+                      [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                        Space,
+                        Str "Todo",
+                        Space,
+                        Str "with",
+                        Space,
+                        Str "notes",
+                        Space,
+                        Str "without",
+                        Space,
+                        Str "checkboxes",
+                        Space,
+                        Span
+                          ("", ["tag"], [("tag-name", "programming")])
+                          [SmallCaps [Str "programming"]],
+                        Str "\160",
+                        Span
+                          ("", ["tag"], [("tag-name", "math")])
+                          [SmallCaps [Str "math"]]
+                      ],
+                    Plain
+                      [ Strong [Str "SCHEDULED:"],
+                        Space,
+                        Emph [Str "<2022-06-14 Tue>"]
+                      ],
+                    Para
+                      [Str "Some", Space, Str "example", Space, Str "notes"]
+                  ]
+                ]
+            ]
+      let area = Area "Personal"
+      let output_blocks =
+            [ Header
+                2
+                ("home-setup", [], [])
+                [ Str "Home",
+                  Space,
+                  Str "setup",
+                  Space,
+                  Span
+                    ("", ["tag"], [("tag-name", "math")])
+                    [SmallCaps [Str "math"]]
+                ],
+              Para [Link ("", [], []) [Str "Add", Space, Str "Project"] ("things:///add-project?title=Home%20setup&tags=math&area=Personal", "")],
+              Header
+                3
+                ("cleanup-kitchen", [], [])
+                [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                  Space,
+                  Str "Cleanup",
+                  Space,
+                  Str "kitchen"
+                ],
+              Plain
+                [ Strong [Str "DEADLINE:"],
+                  Space,
+                  Emph [Str "<2022-06-16 Thu>"],
+                  Space,
+                  Strong [Str "SCHEDULED:"],
+                  Space,
+                  Emph [Str "<2022-06-14 Tue>"]
+                ],
+              Para [Link ("", [], []) [Str "Add", Space, Str "Todo"] ("things:///add?title=Cleanup%20kitchen&when=2022-6-14&deadline=2022-6-16&list=Home%20setup", "")],
+              Header
+                3
+                ("heading-1", [], [])
+                [Str "Heading", Space, Str "1"],
+              OrderedList
+                (1, DefaultStyle, DefaultDelim)
+                [ [ Para
+                      [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                        Space,
+                        Str "Todo",
+                        Space,
+                        Str "with",
+                        Space,
+                        Str "notes",
+                        Space,
+                        Str "without",
+                        Space,
+                        Str "checkboxes",
+                        Space,
+                        Span
+                          ("", ["tag"], [("tag-name", "programming")])
+                          [SmallCaps [Str "programming"]]
+                      ],
+                    Plain
+                      [ Strong [Str "SCHEDULED:"],
+                        Space,
+                        Emph [Str "<2022-06-15 Wed 11:34>"]
+                      ],
+                    Para
+                      [Str "Some", Space, Str "example", Space, Str "notes"],
+                    Para [Link ("", [], []) [Str "Add", Space, Str "Todo"] ("things:///add?title=Todo%20with%20notes%20without%20checkboxes&notes=Some%20example%20notes&when=2022-6-15@11:34&tags=programming&list=Home%20setup&heading=Heading%201", "")]
+                  ],
+                  [ Para
+                      [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                        Space,
+                        Str "Todo",
+                        Space,
+                        Str "with",
+                        Space,
+                        Str "notes",
+                        Space,
+                        Str "and",
+                        Space,
+                        Str "checkboxes"
+                      ],
+                    Plain
+                      [ Strong [Str "SCHEDULED:"],
+                        Space,
+                        Emph [Str "<2022-06-14 Tue>"]
+                      ],
+                    Para [Str "Some", Space, Str "notes"],
+                    BulletList
+                      [ [Plain [Str "\9744", Space, Str "Blah"]],
+                        [ Plain
+                            [Str "\9744", Space, Str "Blah", Space, Str "2"]
+                        ]
+                      ],
+                    Para [Link ("", [], []) [Str "Add", Space, Str "Todo"] ("things:///add?title=Todo%20with%20notes%20and%20checkboxes&notes=Some%20notes&checklist-items=Blah%0ABlah%202&when=2022-6-14&list=Home%20setup&heading=Heading%201", "")]
+                  ]
+                ],
+              Header
+                3
+                ("heading-2", [], [])
+                [Str "Heading", Space, Str "2"],
+              OrderedList
+                (1, DefaultStyle, DefaultDelim)
+                [ [ Para
+                      [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                        Space,
+                        Str "Todo",
+                        Space,
+                        Str "with",
+                        Space,
+                        Str "notes",
+                        Space,
+                        Str "without",
+                        Space,
+                        Str "checkboxes",
+                        Space,
+                        Span
+                          ("", ["tag"], [("tag-name", "programming")])
+                          [SmallCaps [Str "programming"]],
+                        Str "\160",
+                        Span
+                          ("", ["tag"], [("tag-name", "math")])
+                          [SmallCaps [Str "math"]]
+                      ],
+                    Plain
+                      [ Strong [Str "SCHEDULED:"],
+                        Space,
+                        Emph [Str "<2022-06-14 Tue>"]
+                      ],
+                    Para
+                      [Str "Some", Space, Str "example", Space, Str "notes"],
+                    Para [Link ("", [], []) [Str "Add", Space, Str "Todo"] ("things:///add?title=Todo%20with%20notes%20without%20checkboxes&notes=Some%20example%20notes&when=2022-6-14&tags=programming%2Cmath&list=Home%20setup&heading=Heading%202", "")]
+                  ]
+                ]
+            ]
+      let output = Right (output_blocks, [])
+      runParser (parseProject area) input_blocks `shouldBe` output
+
+  describe "parseArea" $ do
+    it "parses an Area containing Todos or Projects" $ do
+      let input_blocks =
+            [ Header
+                1
+                ("professional", [], [])
+                [Str "Professional"],
+              Header
+                2
+                ("email-ethan", [], [])
+                [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                  Space,
+                  Str "Email",
+                  Space,
+                  Str "Ethan",
+                  Space,
+                  Span
+                    ("", ["tag"], [("tag-name", "programming")])
+                    [SmallCaps [Str "programming"]],
+                  Str "\160",
+                  Span
+                    ("", ["tag"], [("tag-name", "maths")])
+                    [SmallCaps [Str "maths"]]
+                ],
+              Para
+                [ Str "Blah",
+                  Space,
+                  Str "notes",
+                  Space,
+                  Str "blah",
+                  Space,
+                  Link
+                    ("", [], [])
+                    [Str "Things", Space, Str "API"]
+                    ( "https://culturedcode.com/things/support/articles/2803573/",
+                      ""
+                    ),
+                  Space,
+                  Code ("", [], []) "code block",
+                  Space,
+                  Emph [Str "italics"],
+                  Space,
+                  Strong [Str "bold"],
+                  Str ".",
+                  Space,
+                  Link
+                    ("", [], [])
+                    [Str "http://joeyh.name/blog/"]
+                    ("http://joeyh.name/blog/", "")
+                ],
+              Header
+                2
+                ("read-up-on-the-counting-curves-in-strata", [], [])
+                [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                  Space,
+                  Str "Read",
+                  Space,
+                  Str "up",
+                  Space,
+                  Str "on",
+                  Space,
+                  Str "the",
+                  Space,
+                  Str "counting",
+                  Space,
+                  Str "curves",
+                  Space,
+                  Str "in",
+                  Space,
+                  Str "strata"
+                ],
+              Plain
+                [ Strong [Str "SCHEDULED:"],
+                  Space,
+                  Emph [Str "<2022-06-14 Tue>"]
+                ],
+              Para
+                [ Str "Perhaps",
+                  Space,
+                  Str "also",
+                  Space,
+                  Str "email",
+                  Space,
+                  Str "John."
+                ],
+              Header
+                2
+                ("update-personal-website", [], [])
+                [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                  Space,
+                  Str "Update",
+                  Space,
+                  Str "personal",
+                  Space,
+                  Str "website"
+                ],
+              Plain
+                [ Strong [Str "SCHEDULED:"],
+                  Space,
+                  Emph [Str "<2022-06-14 Tue>"]
+                ],
+              Para
+                [Str "Things", Space, Str "to", Space, Str "add"],
+              BulletList
+                [ [Plain [Str "\9744", Space, Str "CV"]],
+                  [Plain [Str "\9744", Space, Str "Papers"]],
+                  [ Plain
+                      [ Str "\9744",
+                        Space,
+                        Str "Other",
+                        Space,
+                        Str "things",
+                        Space,
+                        Code ("", [], []) "code block",
+                        Space,
+                        Strong [Str "bold"],
+                        Space,
+                        Str "and",
+                        Space,
+                        Emph [Str "italics"],
+                        Str "."
+                      ]
+                  ]
+                ],
+              Header
+                2
+                ("figure-out-travel", [], [])
+                [Str "Figure", Space, Str "out", Space, Str "travel"],
+              Header
+                3
+                ("check-out-visa-requirements-for-canada", [], [])
+                [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                  Space,
+                  Str "Check",
+                  Space,
+                  Str "out",
+                  Space,
+                  Str "visa",
+                  Space,
+                  Str "requirements",
+                  Space,
+                  Str "for",
+                  Space,
+                  Str "Canada"
+                ],
+              Header
+                3
+                ("qr-study-group", [], [])
+                [Str "QR", Space, Str "Study", Space, Str "Group"],
+              OrderedList
+                (1, DefaultStyle, DefaultDelim)
+                [ [ Para
+                      [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                        Space,
+                        Str "Prep",
+                        Space,
+                        Str "material"
+                      ]
+                  ],
+                  [ Para
+                      [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                        Space,
+                        Str "Record",
+                        Space,
+                        Str "time",
+                        Space,
+                        Str "spent"
+                      ]
+                  ]
+                ]
+            ]
+      let output_blocks =
+            [ Header
+                1
+                ("professional", [], [])
+                [Str "Professional"],
+              Header
+                2
+                ("email-ethan", [], [])
+                [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                  Space,
+                  Str "Email",
+                  Space,
+                  Str "Ethan",
+                  Space,
+                  Span
+                    ("", ["tag"], [("tag-name", "programming")])
+                    [SmallCaps [Str "programming"]],
+                  Str "\160",
+                  Span
+                    ("", ["tag"], [("tag-name", "maths")])
+                    [SmallCaps [Str "maths"]]
+                ],
+              Para
+                [ Str "Blah",
+                  Space,
+                  Str "notes",
+                  Space,
+                  Str "blah",
+                  Space,
+                  Link
+                    ("", [], [])
+                    [Str "Things", Space, Str "API"]
+                    ( "https://culturedcode.com/things/support/articles/2803573/",
+                      ""
+                    ),
+                  Space,
+                  Code ("", [], []) "code block",
+                  Space,
+                  Emph [Str "italics"],
+                  Space,
+                  Strong [Str "bold"],
+                  Str ".",
+                  Space,
+                  Link
+                    ("", [], [])
+                    [Str "http://joeyh.name/blog/"]
+                    ("http://joeyh.name/blog/", "")
+                ],
+              Para [Link ("", [], []) [Str "Add", Space, Str "Todo"] ("things:///add?title=Email%20Ethan&notes=Blah%20notes%20blah%20%28Things%20API%29%5Bhttps%3A%2F%2Fculturedcode.com%2Fthings%2Fsupport%2Farticles%2F2803573%2F%5D%20%60code%20block%60%20%2Aitalics%2A%20%2A%2Abold%2A%2A.%20%28http%3A%2F%2Fjoeyh.name%2Fblog%2F%29%5Bhttp%3A%2F%2Fjoeyh.name%2Fblog%2F%5D&tags=programming%2Cmaths&list=Professional", "")],
+              Header
+                2
+                ("read-up-on-the-counting-curves-in-strata", [], [])
+                [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                  Space,
+                  Str "Read",
+                  Space,
+                  Str "up",
+                  Space,
+                  Str "on",
+                  Space,
+                  Str "the",
+                  Space,
+                  Str "counting",
+                  Space,
+                  Str "curves",
+                  Space,
+                  Str "in",
+                  Space,
+                  Str "strata"
+                ],
+              Plain
+                [ Strong [Str "SCHEDULED:"],
+                  Space,
+                  Emph [Str "<2022-06-14 Tue>"]
+                ],
+              Para
+                [ Str "Perhaps",
+                  Space,
+                  Str "also",
+                  Space,
+                  Str "email",
+                  Space,
+                  Str "John."
+                ],
+              Para [Link ("", [], []) [Str "Add", Space, Str "Todo"] ("things:///add?title=Read%20up%20on%20the%20counting%20curves%20in%20strata&notes=Perhaps%20also%20email%20John.&when=2022-6-14&list=Professional", "")],
+              Header
+                2
+                ("update-personal-website", [], [])
+                [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                  Space,
+                  Str "Update",
+                  Space,
+                  Str "personal",
+                  Space,
+                  Str "website"
+                ],
+              Plain
+                [ Strong [Str "SCHEDULED:"],
+                  Space,
+                  Emph [Str "<2022-06-14 Tue>"]
+                ],
+              Para
+                [Str "Things", Space, Str "to", Space, Str "add"],
+              BulletList
+                [ [Plain [Str "\9744", Space, Str "CV"]],
+                  [Plain [Str "\9744", Space, Str "Papers"]],
+                  [ Plain
+                      [ Str "\9744",
+                        Space,
+                        Str "Other",
+                        Space,
+                        Str "things",
+                        Space,
+                        Code ("", [], []) "code block",
+                        Space,
+                        Strong [Str "bold"],
+                        Space,
+                        Str "and",
+                        Space,
+                        Emph [Str "italics"],
+                        Str "."
+                      ]
+                  ]
+                ],
+              Para [Link ("", [], []) [Str "Add", Space, Str "Todo"] ("things:///add?title=Update%20personal%20website&notes=Things%20to%20add&checklist-items=CV%0APapers%0AOther%20things%20%60code%20block%60%20%2A%2Abold%2A%2A%20and%20%2Aitalics%2A.&when=2022-6-14&list=Professional", "")],
+              Header
+                2
+                ("figure-out-travel", [], [])
+                [Str "Figure", Space, Str "out", Space, Str "travel"],
+              Para [Link ("", [], []) [Str "Add", Space, Str "Project"] ("things:///add-project?title=Figure%20out%20travel&area=Professional", "")],
+              Header
+                3
+                ("check-out-visa-requirements-for-canada", [], [])
+                [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                  Space,
+                  Str "Check",
+                  Space,
+                  Str "out",
+                  Space,
+                  Str "visa",
+                  Space,
+                  Str "requirements",
+                  Space,
+                  Str "for",
+                  Space,
+                  Str "Canada"
+                ],
+              Para [Link ("", [], []) [Str "Add", Space, Str "Todo"] ("things:///add?title=Check%20out%20visa%20requirements%20for%20Canada&list=Figure%20out%20travel", "")],
+              Header
+                3
+                ("qr-study-group", [], [])
+                [Str "QR", Space, Str "Study", Space, Str "Group"],
+              OrderedList
+                (1, DefaultStyle, DefaultDelim)
+                [ [ Para
+                      [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                        Space,
+                        Str "Prep",
+                        Space,
+                        Str "material"
+                      ],
+                    Para [Link ("", [], []) [Str "Add", Space, Str "Todo"] ("things:///add?title=Prep%20material&list=Figure%20out%20travel&heading=QR%20Study%20Group", "")]
+                  ],
+                  [ Para
+                      [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
+                        Space,
+                        Str "Record",
+                        Space,
+                        Str "time",
+                        Space,
+                        Str "spent"
+                      ],
+                    Para [Link ("", [], []) [Str "Add", Space, Str "Todo"] ("things:///add?title=Record%20time%20spent&list=Figure%20out%20travel&heading=QR%20Study%20Group", "")]
+                  ]
+                ]
+            ]
+      let output = Right (output_blocks, [])
+      runParser parseArea input_blocks `shouldBe` output
