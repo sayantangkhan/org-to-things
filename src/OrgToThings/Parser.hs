@@ -264,8 +264,10 @@ parseHeadingMetadata area project = do
 parseHeading :: Area -> Project -> BlockParser [Block]
 parseHeading area project = do
   (titleBlocks, heading) <- parseHeadingMetadata area project
-  nestedBlock <- parseTodoWithProjectAndHeading area project heading
-  return $ titleBlocks ++ nestedBlock
+  optionalNestedBlock <- optional $ parseTodoWithProjectAndHeading area project heading
+  case optionalNestedBlock of
+    Just nestedBlock -> return $ titleBlocks ++ nestedBlock
+    Nothing -> return titleBlocks
 
 parseProjectMetadata :: Area -> BlockParser ([Block], Project)
 parseProjectMetadata area = do
