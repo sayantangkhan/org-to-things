@@ -1,6 +1,20 @@
 -- {-# LANGUAGE OverloadedStrings #-}
 
-module OrgToThings.Definitions where
+-- |
+-- This module generates the data types and constructors corresponding to
+-- objects in the Things model.
+module OrgToThings.Definitions
+  ( -- * Data Constructors
+    Todo (..),
+    Heading (..),
+    Project (..),
+    Area (..),
+    Scheduled (..),
+    Deadline (..),
+    constructTodo,
+    constructProject,
+  )
+where
 
 import Data.Text
 

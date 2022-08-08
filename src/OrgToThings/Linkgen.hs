@@ -1,12 +1,24 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module OrgToThings.Linkgen where
+-- |
+-- This module generates the [Things links](https://culturedcode.com/things/support/articles/2803573/)
+-- for Todos and Projects.
+module OrgToThings.Linkgen (linkFromTodo, linkFromProject) where
 
 import Data.Text (Text, pack)
 import Network.URI.Encode (encodeText)
-import OrgToThings.Definitions (Deadline (..), Heading (heading_title), Project (..), Scheduled (..), Todo (todo_area, todo_checklist, todo_deadline, todo_heading, todo_notes, todo_project, todo_scheduled, todo_tags, todo_title), area_title, project_title)
+import OrgToThings.Definitions
+  ( Deadline (..),
+    Heading (..),
+    Project (..),
+    Scheduled (..),
+    Todo (..),
+    area_title,
+    project_title,
+  )
+import Text.Pandoc.Definition
 
--- Also implement error detection
+-- | Creates a link to add Todo according to [these specifications](https://culturedcode.com/things/support/articles/2803573/#add)
 createTodoLink :: Todo -> Text
 createTodoLink todo =
   mconcat
@@ -50,6 +62,7 @@ createTodoLink todo =
       Just heading -> mappend "heading=" $ encodeText $ heading_title heading
       Nothing -> ""
 
+-- | Creates a link to add Project according to [these specifications](https://culturedcode.com/things/support/articles/2803573/#add-project)
 createProjectLink :: Project -> Text
 createProjectLink project =
   mconcat
@@ -94,3 +107,23 @@ scheduledToString (DateTimeS ((year, month, day), (hour, minute))) = pack $ show
 
 deadlineToString :: Deadline -> Text
 deadlineToString (DateD (year, month, day)) = pack $ show year <> "-" <> show month <> "-" <> show day
+
+linkFromTodo :: Todo -> [Block]
+linkFromTodo todo =
+  [ Para
+      [ Link
+          ("", [], [])
+          [Str "Add", Space, Str "Todo"]
+          (createTodoLink todo, "")
+      ]
+  ]
+
+linkFromProject :: Project -> [Block]
+linkFromProject project =
+  [ Para
+      [ Link
+          ("", [], [])
+          [Str "Add", Space, Str "Project"]
+          (createProjectLink project, "")
+      ]
+  ]

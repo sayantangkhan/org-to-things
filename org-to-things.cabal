@@ -39,12 +39,7 @@ library
   ghc-options: -Wall -Wincomplete-record-updates -fwarn-tabs
   build-depends:
       base >=4.7 && <5
-    , data-default
-    , extra
-    , mtl
-    , pandoc
     , pandoc-types
-    , safe
     , text
     , transformers
     , uri-encode
@@ -59,13 +54,8 @@ executable org-to-things-exe
   ghc-options: -Wall -Wincomplete-record-updates -fwarn-tabs -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
-    , data-default
-    , extra
-    , mtl
     , org-to-things
-    , pandoc
     , pandoc-types
-    , safe
     , text
     , transformers
     , uri-encode
@@ -82,14 +72,9 @@ test-suite org-to-things-test
   ghc-options: -Wall -Wincomplete-record-updates -fwarn-tabs -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
-    , data-default
-    , extra
     , hspec
-    , mtl
     , org-to-things
-    , pandoc
     , pandoc-types
-    , safe
     , text
     , transformers
     , uri-encode

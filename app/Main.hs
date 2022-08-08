@@ -1,6 +1,7 @@
 module Main where
 
-import OrgToThings (mainFunc)
+import OrgToThings (filterFunc)
+import Text.Pandoc.JSON
 
 main :: IO ()
-main = mainFunc
+main = toJSONFilter filterFunc

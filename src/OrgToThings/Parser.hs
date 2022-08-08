@@ -6,18 +6,46 @@
 -- |
 -- Module: OrgToThings.ParserMonad
 --
--- Parser monad to parse String, \[Inline\], and \[Block\].
-module OrgToThings.Parser where
+-- Parser to parse @[Block]@ and return @[Block]@ with links appended at the appropriate locations.
+module OrgToThings.Parser
+  ( filterFunc,
+    parseArea,
+    parseProject,
+    parseHeading,
+    parseTodoInArea,
+    parseTodoWithProject,
+    parseTodoWithProjectAndHeading,
+    parseNotesBlock,
+    parseChecklistBlock,
+    parseSingleChecklistInline,
+    parseNotesInline,
+    parseSpecialInline,
+    parseTodoAndTagsInline,
+    parsePlanningInline,
+    parseDeadlineString,
+    parseScheduledString,
+    runParser,
+  )
+where
 
 import Control.Applicative (Alternative (..))
 import Control.Monad
-import Control.Monad.Trans.State.Strict
+import Control.Monad.Trans.State.Strict (StateT (..), evalStateT)
 import Data.Bifunctor (first)
 import Data.Char (isDigit)
 import qualified Data.Text as T
 import OrgToThings.Definitions
-import OrgToThings.Linkgen (createProjectLink, createTodoLink)
+import OrgToThings.Linkgen (linkFromProject, linkFromTodo)
 import Text.Pandoc.Definition
+
+filterFunc :: Pandoc -> Pandoc
+filterFunc (Pandoc meta blocks) = case Pandoc meta <$> evalParser parseAgenda blocks of
+  Right p -> p
+  Left e -> error $ "Filter error: " ++ show e
+
+--
+-- Parser monad and combinators
+--
 
 -- | Generalized parser Monad, where t is the token type, e is the error type, and a is the return type.
 newtype TokenParser t e a = TokenParser {unParser :: StateT [t] (Either e) a}
@@ -29,7 +57,6 @@ type CharParser = TokenParser Char String
 
 type InlineParser = TokenParser Inline (String, Maybe Inline)
 
--- Generalize this to remember the tokens it reads
 type BlockParser = TokenParser Block (String, Maybe Block)
 
 runParser :: TokenParser t e a -> [t] -> Either e (a, [t])
@@ -87,82 +114,203 @@ instance Monad (TokenParser t e) where
       (a', s') <- runParser a s
       runParser (f a') s'
 
-expectedMessage :: String -> CharParser a -> CharParser a
-expectedMessage expected parser = parserConstructor applyParser
+-- | A useful parser combinator
+greedyManyTill :: TokenParser t e a -> TokenParser t e end -> TokenParser t e [a]
+greedyManyTill parser endParser = parserConstructor innerLambda
   where
-    applyParser s = case runParser parser s of
-      Left _ -> Left ("Expected " ++ expected ++ ". Found " ++ s)
-      x -> x
+    innerLambda s = case runParser parser s of
+      Left _ -> baseCase s
+      Right (a, u) -> case innerLambda u of
+        Right (as, v) -> Right (a : as, v)
+        Left _ -> baseCase s
+    baseCase s = case runParser endParser s of
+      Right (_, u) -> Right ([], u)
+      Left x -> Left x
 
-parseAnyChar :: CharParser Char
-parseAnyChar = parserConstructor $ \case
-  [] -> empty
-  (c : cs) -> pure (c, cs)
-
-parseStringEOL :: CharParser ()
-parseStringEOL = parserConstructor $ \case
-  [] -> pure ((), [])
-  c -> Left $ "Expected PARSESTRINGEOL. Found '" ++ c ++ "'"
-
-peekAnyChar :: CharParser Char
-peekAnyChar = parserConstructor $ \case
-  [] -> empty
-  (c : cs) -> pure (c, c : cs)
-
-satisfyCombinatorString :: (Char -> Bool) -> CharParser Char
-satisfyCombinatorString predicate = do
-  c <- peekAnyChar
-  guard $ predicate c
-  parseAnyChar
-
-parseChar :: Char -> CharParser Char
-parseChar = satisfyCombinatorString . (==)
-
-parseDigit :: CharParser Char
-parseDigit = satisfyCombinatorString isDigit
-
-parseYear :: CharParser Int
-parseYear = read <$> replicateM 4 parseDigit
-
-parseDate :: CharParser (Int, Int, Int)
-parseDate = do
-  year <- read <$> replicateM 4 parseDigit
-  void $ parseChar '-'
-  month <- read <$> replicateM 2 parseDigit
-  void $ parseChar '-'
-  day <- read <$> replicateM 2 parseDigit
-  return (year, month, day)
-
-parseTime :: CharParser (Int, Int)
-parseTime = do
-  hour <- read <$> replicateM 2 parseDigit
-  void $ parseChar ':'
-  minute <- read <$> replicateM 2 parseDigit
-  return (hour, minute)
-
-parseScheduledString :: CharParser Scheduled
-parseScheduledString = expectedMessage "schedule" $ (planningDateTime <|> planningDate) <* parseStringEOL
+sepBy :: TokenParser t e a -> TokenParser t e sep -> TokenParser t e [a]
+sepBy parser sepParser = parserConstructor innerLambda
   where
-    planningDateTime = do
-      date <- parseChar '<' *> parseDate <* replicateM 5 parseAnyChar
-      time <- parseTime <* parseChar '>'
-      return $ DateTimeS (date, time)
-    planningDate = do
-      date <- parseChar '<' *> parseDate <* replicateM 4 parseAnyChar <* parseChar '>'
-      return $ DateS date
+    innerLambda s = case runParser parser s of
+      Right (a, u) -> case runParser sepParser u of
+        Right (_, v) -> first (a :) <$> innerLambda v
+        Left _ -> Right ([a], u)
+      Left x -> Left x
 
-parseDeadlineString :: CharParser Deadline
-parseDeadlineString = expectedMessage "deadline" $ planningDate <* parseStringEOL
+optional :: TokenParser t e a -> TokenParser t e (Maybe a)
+optional parser = parserConstructor innerLambda
   where
-    planningDate = do
-      date <- parseChar '<' *> parseDate <* replicateM 4 parseAnyChar <* parseChar '>'
-      return $ DateD date
+    innerLambda s = case runParser parser s of
+      Right (a, u) -> Right (Just a, u)
+      Left _ -> Right (Nothing, s)
 
-readScheduled :: T.Text -> Either String Scheduled
-readScheduled t = evalParser parseScheduledString (T.unpack t)
+optionalBlocks :: BlockParser ([Block], a) -> BlockParser ([Block], Maybe a)
+optionalBlocks parser = parserConstructor innerLambda
+  where
+    innerLambda s = case runParser parser s of
+      Right ((b, a), u) -> Right ((b, Just a), u)
+      Left _ -> Right (([], Nothing), s)
 
-readDeadline :: T.Text -> Either String Deadline
-readDeadline t = evalParser parseDeadlineString (T.unpack t)
+--
+-- Block parsers
+--
+
+parseEOLBlock :: BlockParser ([Block], ())
+parseEOLBlock = parserConstructor $ \case
+  [] -> pure (([], ()), [])
+  (x : _) -> Left ("Expected empty input", Just x)
+
+parseChecklistBlock :: BlockParser ([Block], [T.Text])
+parseChecklistBlock = parserConstructor $ \case
+  (BulletList blocks : xs) -> case evalParser parseChecklistItems (concat blocks) of
+    Left _ -> Left ("Failed to parse BulletList", Just (BulletList blocks))
+    Right items -> Right (([BulletList blocks], items), xs)
+    where
+      parseChecklistItems = some parseChecklistItem <* parseEOLBlock
+      parseChecklistItem = parserConstructor $ \case
+        (Plain item : ys) -> case evalParser parseSingleChecklistInline item of
+          Right y -> Right (y, ys)
+          Left (message, Just _) -> Left (message, Just (Plain item))
+          Left (message, Nothing) -> Left (message, Nothing)
+        (x : _) -> Left ("Expected Plain wrapping a checklist item", Just x)
+        [] -> Left ("Expected non-empty blocks", Nothing)
+  (x : _) -> Left ("Expected a BulletList", Just x)
+  [] -> Left ("Expected a Block", Nothing)
+
+parseNotesBlock :: BlockParser ([Block], T.Text)
+parseNotesBlock = parserConstructor $ \case
+  (Para inlines : xs) -> case evalParser parseNotesInline inlines of
+    Left (message, _) -> Left (message, Just $ Para inlines)
+    Right notes -> Right (([Para inlines], notes), xs)
+  (x : _) -> Left ("Expected Para", Just x)
+  [] -> Left ("Expected a Block", Nothing)
+
+parsePlanningBlock :: BlockParser ([Block], (Maybe Scheduled, Maybe Deadline))
+parsePlanningBlock = parserConstructor $ \case
+  (Plain inlines : xs) -> case evalParser parsePlanningInline inlines of
+    Left (message, _) -> Left (message, Just $ Plain inlines)
+    Right planningInfo -> Right (([Plain inlines], planningInfo), xs)
+  (x : _) -> Left ("Expected Plain", Just x)
+  [] -> Left ("Expected a Block", Nothing)
+
+parseTodoAndTagsBlock :: BlockParser ([Block], (T.Text, [T.Text]))
+parseTodoAndTagsBlock = parserConstructor $ \case
+  (Para inlines : xs) -> case evalParser parseTodoAndTagsInline inlines of
+    Left (message, _) -> Left (message, Just $ Para inlines)
+    Right todoAndTags -> Right (([Para inlines], todoAndTags), xs)
+  (Header 1 attr inlines : _) -> Left ("Expected Header 2 or Header 3", Just $ Header 1 attr inlines)
+  (Header level attr inlines : xs) -> case evalParser parseTodoAndTagsInline inlines of
+    Left (message, _) -> Left (message, Just $ Header level attr inlines)
+    Right todoAndTags -> Right (([Header level attr inlines], todoAndTags), xs)
+  (x : _) -> Left ("Expected Para", Just x)
+  [] -> Left ("Expected a Block", Nothing)
+
+parseTitleAndTagsBlock :: BlockParser ([Block], (T.Text, [T.Text]))
+parseTitleAndTagsBlock = parserConstructor $ \case
+  (Header 2 attr inlines : xs) -> case evalParser parseTitleAndTagsInline inlines of
+    Left (message, _) -> Left (message, Just $ Header 2 attr inlines)
+    Right titleAndTags -> Right (([Header 2 attr inlines], titleAndTags), xs)
+  (x : _) -> Left ("Expected Header 2", Just x)
+  [] -> Left ("Expected a Block", Nothing)
+
+parseTitleBlock :: BlockParser ([Block], T.Text)
+parseTitleBlock = parserConstructor $ \case
+  (Header 3 attr inlines : xs) -> case evalParser parseTitleInline inlines of
+    Left (message, _) -> Left (message, Just $ Header 3 attr inlines)
+    Right title -> Right (([Header 3 attr inlines], title), xs)
+  (x : _) -> Left ("Expected Header 3", Just x)
+  [] -> Left ("Expected a Block", Nothing)
+
+parseSingleTodoWithProjectAndHeading :: Area -> Project -> Heading -> BlockParser [Block]
+parseSingleTodoWithProjectAndHeading area project heading = do
+  (titleBlocks, (title, tags)) <- parseTodoAndTagsBlock
+  (planning_blocks, optional_planning) <- optionalBlocks parsePlanningBlock
+  (notes_blocks, optional_notes) <- optionalBlocks parseNotesBlock
+  (checklist_blocks, optional_checklist) <- optionalBlocks parseChecklistBlock
+  _ <- parseEOLBlock
+  let todo = constructTodo title tags optional_planning optional_notes optional_checklist (Just heading) (Just project) area
+  return $ titleBlocks ++ planning_blocks ++ notes_blocks ++ checklist_blocks ++ linkFromTodo todo
+
+parseTodoWithProjectAndHeading :: Area -> Project -> Heading -> BlockParser [Block]
+parseTodoWithProjectAndHeading area project heading = parserConstructor $ \case
+  (OrderedList attr blocks : xs) -> case sequence $ evalParser (parseSingleTodoWithProjectAndHeading area project heading) <$> blocks of
+    Right transformedBlocks -> Right ([OrderedList attr transformedBlocks], xs)
+    Left m -> Left m
+  (x : _) -> Left ("Expected OrderedList", Just x)
+  [] -> Left ("Expected a Block", Nothing)
+
+parseTodoWithProject :: Area -> Project -> BlockParser [Block]
+parseTodoWithProject area project = do
+  (titleBlocks, (title, tags)) <- parseTodoAndTagsBlock
+  (planning_blocks, optional_planning) <- optionalBlocks parsePlanningBlock
+  (notes_blocks, optional_notes) <- optionalBlocks parseNotesBlock
+  (checklist_blocks, optional_checklist) <- optionalBlocks parseChecklistBlock
+  let todo = constructTodo title tags optional_planning optional_notes optional_checklist Nothing (Just project) area
+  return $ titleBlocks ++ planning_blocks ++ notes_blocks ++ checklist_blocks ++ linkFromTodo todo
+
+parseTodoInArea :: Area -> BlockParser [Block]
+parseTodoInArea area = do
+  (titleBlocks, (title, tags)) <- parseTodoAndTagsBlock
+  (planning_blocks, optional_planning) <- optionalBlocks parsePlanningBlock
+  (notes_blocks, optional_notes) <- optionalBlocks parseNotesBlock
+  (checklist_blocks, optional_checklist) <- optionalBlocks parseChecklistBlock
+  let todo = constructTodo title tags optional_planning optional_notes optional_checklist Nothing Nothing area
+  return $ titleBlocks ++ planning_blocks ++ notes_blocks ++ checklist_blocks ++ linkFromTodo todo
+
+parseHeadingMetadata :: Area -> Project -> BlockParser ([Block], Heading)
+parseHeadingMetadata area project = do
+  (metadataBlocks, title) <- parseTitleBlock
+  return (metadataBlocks, Heading title project area)
+
+parseHeading :: Area -> Project -> BlockParser [Block]
+parseHeading area project = do
+  (titleBlocks, heading) <- parseHeadingMetadata area project
+  nestedBlock <- parseTodoWithProjectAndHeading area project heading
+  return $ titleBlocks ++ nestedBlock
+
+parseProjectMetadata :: Area -> BlockParser ([Block], Project)
+parseProjectMetadata area = do
+  (titleBlocks, (title, tags)) <- parseTitleAndTagsBlock
+  (planning_blocks, optional_planning) <- optionalBlocks parsePlanningBlock
+  (notes_blocks, optional_notes) <- optionalBlocks parseNotesBlock
+  let project = constructProject title tags optional_planning optional_notes area
+  return (titleBlocks ++ planning_blocks ++ notes_blocks ++ linkFromProject project, project)
+
+parseProject :: Area -> BlockParser [Block]
+parseProject area = do
+  (metadataBlock, project) <- parseProjectMetadata area
+  nestedBlocks <- concat <$> many (parseHeading area project <|> parseTodoWithProject area project)
+  return $ metadataBlock ++ nestedBlocks
+
+parseAreaMetadata :: BlockParser ([Block], Area)
+parseAreaMetadata = parserConstructor $ \case
+  (Header 1 attr inlines : xs) -> case evalParser parseStrInline inlines of
+    Left (message, _) -> Left (message, Just $ Header 1 attr inlines)
+    Right areaTitle -> Right (([Header 1 attr inlines], Area areaTitle), xs)
+  (x : _) -> Left ("Expected Header 1", Just x)
+  [] -> Left ("Expected a Block", Nothing)
+
+parseArea :: BlockParser [Block]
+parseArea = do
+  (metadataBlocks, area) <- parseAreaMetadata
+  nestedBlocks <- concat <$> many (parseProject area <|> parseTodoInArea area)
+  return $ metadataBlocks ++ nestedBlocks
+
+parseRawBlock :: BlockParser [Block]
+parseRawBlock = parserConstructor $ \case
+  (RawBlock format text : xs) -> Right ([RawBlock format text], xs)
+  (x : _) -> Left ("Expected RawBlock", Just x)
+  [] -> Left ("Expected a Block", Nothing)
+
+parseAgenda :: BlockParser [Block]
+parseAgenda = do
+  rawBlocks <- concat <$> many parseRawBlock
+  dataBlocks <- concat <$> many parseArea
+  _ <- parseEOLBlock
+  return $ rawBlocks ++ dataBlocks
+
+--
+-- Inline parsers
+--
 
 parseWhitespaceInline :: InlineParser ()
 parseWhitespaceInline = parserConstructor $ \case
@@ -240,42 +388,6 @@ parseStrInline = T.concat <$> some singleParser
       (Space : xs) -> pure (" ", xs)
       (x : _) -> Left ("Expected Str or Space", Just x)
       _ -> Left ("Expected input Str", Nothing)
-
--- | A useful parser combinator
-greedyManyTill :: TokenParser t e a -> TokenParser t e end -> TokenParser t e [a]
-greedyManyTill parser endParser = parserConstructor innerLambda
-  where
-    innerLambda s = case runParser parser s of
-      Left _ -> baseCase s
-      Right (a, u) -> case innerLambda u of
-        Right (as, v) -> Right (a : as, v)
-        Left _ -> baseCase s
-    baseCase s = case runParser endParser s of
-      Right (_, u) -> Right ([], u)
-      Left x -> Left x
-
-sepBy :: TokenParser t e a -> TokenParser t e sep -> TokenParser t e [a]
-sepBy parser sepParser = parserConstructor innerLambda
-  where
-    innerLambda s = case runParser parser s of
-      Right (a, u) -> case runParser sepParser u of
-        Right (_, v) -> first (a :) <$> innerLambda v
-        Left _ -> Right ([a], u)
-      Left x -> Left x
-
-optional :: TokenParser t e a -> TokenParser t e (Maybe a)
-optional parser = parserConstructor innerLambda
-  where
-    innerLambda s = case runParser parser s of
-      Right (a, u) -> Right (Just a, u)
-      Left _ -> Right (Nothing, s)
-
-optionalBlocks :: BlockParser ([Block], a) -> BlockParser ([Block], Maybe a)
-optionalBlocks parser = parserConstructor innerLambda
-  where
-    innerLambda s = case runParser parser s of
-      Right ((b, a), u) -> Right ((b, Just a), u)
-      Left _ -> Right (([], Nothing), s)
 
 parseTodoAndTagsInline :: InlineParser (T.Text, [T.Text])
 parseTodoAndTagsInline = do
@@ -374,166 +486,80 @@ parseSingleChecklistInline = checkMark *> parseNotesInline
       (x : _) -> Left ("Expected to start with a checkmark", Just x)
       [] -> Left ("Expected a non-empty item in checklist", Nothing)
 
-parseEOLBlock :: BlockParser ([Block], ())
-parseEOLBlock = parserConstructor $ \case
-  [] -> pure (([], ()), [])
-  (x : _) -> Left ("Expected empty input", Just x)
+--
+-- Char Parsers
+--
 
-parseChecklistBlock :: BlockParser ([Block], [T.Text])
-parseChecklistBlock = parserConstructor $ \case
-  (BulletList blocks : xs) -> case evalParser parseChecklistItems (concat blocks) of
-    Left _ -> Left ("Failed to parse BulletList", Just (BulletList blocks))
-    Right items -> Right (([BulletList blocks], items), xs)
-    where
-      parseChecklistItems = some parseChecklistItem <* parseEOLBlock
-      parseChecklistItem = parserConstructor $ \case
-        (Plain item : ys) -> case evalParser parseSingleChecklistInline item of
-          Right y -> Right (y, ys)
-          Left (message, Just _) -> Left (message, Just (Plain item))
-          Left (message, Nothing) -> Left (message, Nothing)
-        (x : _) -> Left ("Expected Plain wrapping a checklist item", Just x)
-        [] -> Left ("Expected non-empty blocks", Nothing)
-  (x : _) -> Left ("Expected a BulletList", Just x)
-  [] -> Left ("Expected a Block", Nothing)
+expectedMessage :: String -> CharParser a -> CharParser a
+expectedMessage expected parser = parserConstructor applyParser
+  where
+    applyParser s = case runParser parser s of
+      Left _ -> Left ("Expected " ++ expected ++ ". Found " ++ s)
+      x -> x
 
-parseNotesBlock :: BlockParser ([Block], T.Text)
-parseNotesBlock = parserConstructor $ \case
-  (Para inlines : xs) -> case evalParser parseNotesInline inlines of
-    Left (message, _) -> Left (message, Just $ Para inlines)
-    Right notes -> Right (([Para inlines], notes), xs)
-  (x : _) -> Left ("Expected Para", Just x)
-  [] -> Left ("Expected a Block", Nothing)
+parseAnyChar :: CharParser Char
+parseAnyChar = parserConstructor $ \case
+  [] -> empty
+  (c : cs) -> pure (c, cs)
 
-parsePlanningBlock :: BlockParser ([Block], (Maybe Scheduled, Maybe Deadline))
-parsePlanningBlock = parserConstructor $ \case
-  (Plain inlines : xs) -> case evalParser parsePlanningInline inlines of
-    Left (message, _) -> Left (message, Just $ Plain inlines)
-    Right planningInfo -> Right (([Plain inlines], planningInfo), xs)
-  (x : _) -> Left ("Expected Plain", Just x)
-  [] -> Left ("Expected a Block", Nothing)
+parseStringEOL :: CharParser ()
+parseStringEOL = parserConstructor $ \case
+  [] -> pure ((), [])
+  c -> Left $ "Expected PARSESTRINGEOL. Found '" ++ c ++ "'"
 
-parseTodoAndTagsBlock :: BlockParser ([Block], (T.Text, [T.Text]))
-parseTodoAndTagsBlock = parserConstructor $ \case
-  (Para inlines : xs) -> case evalParser parseTodoAndTagsInline inlines of
-    Left (message, _) -> Left (message, Just $ Para inlines)
-    Right todoAndTags -> Right (([Para inlines], todoAndTags), xs)
-  (Header 1 attr inlines : _) -> Left ("Expected Header 2 or Header 3", Just $ Header 1 attr inlines)
-  (Header level attr inlines : xs) -> case evalParser parseTodoAndTagsInline inlines of
-    Left (message, _) -> Left (message, Just $ Header level attr inlines)
-    Right todoAndTags -> Right (([Header level attr inlines], todoAndTags), xs)
-  (x : _) -> Left ("Expected Para", Just x)
-  [] -> Left ("Expected a Block", Nothing)
+peekAnyChar :: CharParser Char
+peekAnyChar = parserConstructor $ \case
+  [] -> empty
+  (c : cs) -> pure (c, c : cs)
 
-parseTitleAndTagsBlock :: BlockParser ([Block], (T.Text, [T.Text]))
-parseTitleAndTagsBlock = parserConstructor $ \case
-  (Header 2 attr inlines : xs) -> case evalParser parseTitleAndTagsInline inlines of
-    Left (message, _) -> Left (message, Just $ Header 2 attr inlines)
-    Right titleAndTags -> Right (([Header 2 attr inlines], titleAndTags), xs)
-  (x : _) -> Left ("Expected Header 2", Just x)
-  [] -> Left ("Expected a Block", Nothing)
+satisfyCombinatorString :: (Char -> Bool) -> CharParser Char
+satisfyCombinatorString predicate = do
+  c <- peekAnyChar
+  guard $ predicate c
+  parseAnyChar
 
-parseTitleBlock :: BlockParser ([Block], T.Text)
-parseTitleBlock = parserConstructor $ \case
-  (Header 3 attr inlines : xs) -> case evalParser parseTitleInline inlines of
-    Left (message, _) -> Left (message, Just $ Header 3 attr inlines)
-    Right title -> Right (([Header 3 attr inlines], title), xs)
-  (x : _) -> Left ("Expected Header 3", Just x)
-  [] -> Left ("Expected a Block", Nothing)
+parseChar :: Char -> CharParser Char
+parseChar = satisfyCombinatorString . (==)
 
-parseSingleTodoWithProjectAndHeading :: Area -> Project -> Heading -> BlockParser [Block]
-parseSingleTodoWithProjectAndHeading area project heading = do
-  (titleBlocks, (title, tags)) <- parseTodoAndTagsBlock
-  (planning_blocks, optional_planning) <- optionalBlocks parsePlanningBlock
-  (notes_blocks, optional_notes) <- optionalBlocks parseNotesBlock
-  (checklist_blocks, optional_checklist) <- optionalBlocks parseChecklistBlock
-  _ <- parseEOLBlock
-  let todo = constructTodo title tags optional_planning optional_notes optional_checklist (Just heading) (Just project) area
-  return $ titleBlocks ++ planning_blocks ++ notes_blocks ++ checklist_blocks ++ linkFromTodo todo
+parseDigit :: CharParser Char
+parseDigit = satisfyCombinatorString isDigit
 
-parseTodoWithProjectAndHeading :: Area -> Project -> Heading -> BlockParser [Block]
-parseTodoWithProjectAndHeading area project heading = parserConstructor $ \case
-  (OrderedList attr blocks : xs) -> case (sequence $ (evalParser $ parseSingleTodoWithProjectAndHeading area project heading) <$> blocks) of
-    Right transformedBlocks -> Right ([OrderedList attr transformedBlocks], xs)
-    Left m -> Left m
-  (x : _) -> Left ("Expected OrderedList", Just x)
-  [] -> Left ("Expected a Block", Nothing)
+parseDate :: CharParser (Int, Int, Int)
+parseDate = do
+  year <- read <$> replicateM 4 parseDigit
+  void $ parseChar '-'
+  month <- read <$> replicateM 2 parseDigit
+  void $ parseChar '-'
+  day <- read <$> replicateM 2 parseDigit
+  return (year, month, day)
 
-parseTodoWithProject :: Area -> Project -> BlockParser [Block]
-parseTodoWithProject area project = do
-  (titleBlocks, (title, tags)) <- parseTodoAndTagsBlock
-  (planning_blocks, optional_planning) <- optionalBlocks parsePlanningBlock
-  (notes_blocks, optional_notes) <- optionalBlocks parseNotesBlock
-  (checklist_blocks, optional_checklist) <- optionalBlocks parseChecklistBlock
-  let todo = constructTodo title tags optional_planning optional_notes optional_checklist Nothing (Just project) area
-  return $ titleBlocks ++ planning_blocks ++ notes_blocks ++ checklist_blocks ++ linkFromTodo todo
+parseTime :: CharParser (Int, Int)
+parseTime = do
+  hour <- read <$> replicateM 2 parseDigit
+  void $ parseChar ':'
+  minute <- read <$> replicateM 2 parseDigit
+  return (hour, minute)
 
-parseTodoInArea :: Area -> BlockParser [Block]
-parseTodoInArea area = do
-  (titleBlocks, (title, tags)) <- parseTodoAndTagsBlock
-  (planning_blocks, optional_planning) <- optionalBlocks parsePlanningBlock
-  (notes_blocks, optional_notes) <- optionalBlocks parseNotesBlock
-  (checklist_blocks, optional_checklist) <- optionalBlocks parseChecklistBlock
-  let todo = constructTodo title tags optional_planning optional_notes optional_checklist Nothing Nothing area
-  return $ titleBlocks ++ planning_blocks ++ notes_blocks ++ checklist_blocks ++ linkFromTodo todo
+parseScheduledString :: CharParser Scheduled
+parseScheduledString = expectedMessage "schedule" $ (planningDateTime <|> planningDate) <* parseStringEOL
+  where
+    planningDateTime = do
+      date <- parseChar '<' *> parseDate <* replicateM 5 parseAnyChar
+      time <- parseTime <* parseChar '>'
+      return $ DateTimeS (date, time)
+    planningDate = do
+      date <- parseChar '<' *> parseDate <* replicateM 4 parseAnyChar <* parseChar '>'
+      return $ DateS date
 
-parseHeadingMetadata :: Area -> Project -> BlockParser ([Block], Heading)
-parseHeadingMetadata area project = do
-  (metadataBlocks, title) <- parseTitleBlock
-  return (metadataBlocks, Heading title project area)
+parseDeadlineString :: CharParser Deadline
+parseDeadlineString = expectedMessage "deadline" $ planningDate <* parseStringEOL
+  where
+    planningDate = do
+      date <- parseChar '<' *> parseDate <* replicateM 4 parseAnyChar <* parseChar '>'
+      return $ DateD date
 
-parseHeading :: Area -> Project -> BlockParser [Block]
-parseHeading area project = do
-  (titleBlocks, heading) <- parseHeadingMetadata area project
-  nestedBlock <- parseTodoWithProjectAndHeading area project heading
-  return $ titleBlocks ++ nestedBlock
+readScheduled :: T.Text -> Either String Scheduled
+readScheduled t = evalParser parseScheduledString (T.unpack t)
 
-parseProjectMetadata :: Area -> BlockParser ([Block], Project)
-parseProjectMetadata area = do
-  (titleBlocks, (title, tags)) <- parseTitleAndTagsBlock
-  (planning_blocks, optional_planning) <- optionalBlocks parsePlanningBlock
-  (notes_blocks, optional_notes) <- optionalBlocks parseNotesBlock
-  let project = constructProject title tags optional_planning optional_notes area
-  return (titleBlocks ++ planning_blocks ++ notes_blocks ++ linkFromProject project, project)
-
-parseProject :: Area -> BlockParser [Block]
-parseProject area = do
-  (metadataBlock, project) <- parseProjectMetadata area
-  nestedBlocks <- concat <$> many (parseHeading area project <|> parseTodoWithProject area project)
-  return $ metadataBlock ++ nestedBlocks
-
-parseAreaMetadata :: BlockParser ([Block], Area)
-parseAreaMetadata = parserConstructor $ \case
-  (Header 1 attr inlines : xs) -> case evalParser parseStrInline inlines of
-    Left (message, _) -> Left (message, Just $ Header 1 attr inlines)
-    Right areaTitle -> Right (([Header 1 attr inlines], Area areaTitle), xs)
-  (x : _) -> Left ("Expected Header 1", Just x)
-  [] -> Left ("Expected a Block", Nothing)
-
-parseArea :: BlockParser [Block]
-parseArea = do
-  (metadataBlocks, area) <- parseAreaMetadata
-  nestedBlocks <- concat <$> many (parseProject area <|> parseTodoInArea area)
-  return $ metadataBlocks ++ nestedBlocks
-
-parseAndTransformBlocks :: Pandoc -> Either (String, Maybe Block) Pandoc
-parseAndTransformBlocks (Pandoc meta blocks) = Pandoc meta <$> evalParser (concat <$> many parseArea) blocks
-
-linkFromTodo :: Todo -> [Block]
-linkFromTodo todo =
-  [ Para
-      [ Link
-          ("", [], [])
-          [Str "Add", Space, Str "Todo"]
-          (createTodoLink todo, "")
-      ]
-  ]
-
-linkFromProject :: Project -> [Block]
-linkFromProject project =
-  [ Para
-      [ Link
-          ("", [], [])
-          [Str "Add", Space, Str "Project"]
-          (createProjectLink project, "")
-      ]
-  ]
+readDeadline :: T.Text -> Either String Deadline
+readDeadline t = evalParser parseDeadlineString (T.unpack t)
