@@ -28,7 +28,8 @@ Todos can have checklist items up to a maximum of 100.
 ** Things
 - All Areas and Projects must have unique names, i.e. no Area can have the same name as a Project, and no two Areas or Projects can have the same name.
 - Projects must always belong to an Area.
-** Org
-- All TODOs must have depth between 1 and 4.
-
 * List of valid tags
+These can be any tags you already have created in Things. Here are the tags I use, for reference.
+- errand
+- deep-work
+- light-work

@@ -1,5 +1,5 @@
 name:                org-to-things
-version:             0.1.0.0
+version:             1.0.0.0
 github:              "sayantangkhan/org-to-things"
 license:             MIT
 author:              "Sayantan Khan"
@@ -43,6 +43,7 @@ executables:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    - -O2
     dependencies:
     - org-to-things
 

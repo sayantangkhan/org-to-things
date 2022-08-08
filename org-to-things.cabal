@@ -5,7 +5,7 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:           org-to-things
-version:        0.1.0.0
+version:        1.0.0.0
 synopsis:       Convert Org files to HTML with links to import into Things 3
 description:    Please see the README on GitHub at <https://github.com/sayantangkhan/org-to-things#readme>
 category:       Web
@@ -51,7 +51,7 @@ executable org-to-things-exe
       Paths_org_to_things
   hs-source-dirs:
       app
-  ghc-options: -Wall -Wincomplete-record-updates -fwarn-tabs -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wincomplete-record-updates -fwarn-tabs -threaded -rtsopts -with-rtsopts=-N -O2
   build-depends:
       base >=4.7 && <5
     , org-to-things
