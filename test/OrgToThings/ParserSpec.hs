@@ -112,7 +112,7 @@ spec = parallel $ do
               Space,
               Str "checkboxes"
             ]
-      let output = Right (("Todo without a project with notes without checkboxes", []), [])
+      let output = Right (("Todo without a project with notes without checkboxes", [], Active), [])
       runParser parseTodoAndTagsInline input `shouldBe` output
 
     it "parses a TODO with a single tag" $ do
@@ -133,10 +133,10 @@ spec = parallel $ do
                 ("", ["tag"], [("tag-name", "programming")])
                 [SmallCaps [Str "programming"]]
             ]
-      let output = Right (("Todo with notes without checkboxes", ["programming"]), [])
+      let output = Right (("Todo with notes without checkboxes", ["programming"], Active), [])
       runParser parseTodoAndTagsInline input `shouldBe` output
 
-    it "parses a TODO with a multiple tag" $ do
+    it "parses a TODO with multiple tags" $ do
       let input =
             [ Span ("", ["todo", "TODO"], []) [Str "TODO"],
               Space,
@@ -158,7 +158,32 @@ spec = parallel $ do
                 ("", ["tag"], [("tag-name", "math")])
                 [SmallCaps [Str "math"]]
             ]
-      let output = Right (("Todo with notes without checkboxes", ["programming", "math"]), [])
+      let output = Right (("Todo with notes without checkboxes", ["programming", "math"], Active), [])
+      runParser parseTodoAndTagsInline input `shouldBe` output
+
+    it "parses an INACTIVE with multiple tags" $ do
+      let input =
+            [ Str "INACTIVE",
+              Space,
+              Str "Todo",
+              Space,
+              Str "with",
+              Space,
+              Str "notes",
+              Space,
+              Str "without",
+              Space,
+              Str "checkboxes",
+              Space,
+              Span
+                ("", ["tag"], [("tag-name", "programming")])
+                [SmallCaps [Str "programming"]],
+              Str "\160",
+              Span
+                ("", ["tag"], [("tag-name", "math")])
+                [SmallCaps [Str "math"]]
+            ]
+      let output = Right (("Todo with notes without checkboxes", ["programming", "math"], Inactive), [])
       runParser parseTodoAndTagsInline input `shouldBe` output
 
     it "fails to parse TODO without a TODO marker" $ do

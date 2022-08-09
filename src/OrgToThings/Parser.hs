@@ -192,11 +192,11 @@ parsePlanningBlock = parserConstructor $ \case
   (x : _) -> Left ("Expected Plain", Just x)
   [] -> Left ("Expected a Block", Nothing)
 
-parseTodoAndTagsBlock :: BlockParser ([Block], (T.Text, [T.Text]))
+parseTodoAndTagsBlock :: BlockParser ([Block], (T.Text, [T.Text], TodoActivity))
 parseTodoAndTagsBlock = parserConstructor $ \case
   (Para inlines : xs) -> case evalParser parseTodoAndTagsInline inlines of
     Left (message, _) -> Left (message, Just $ Para inlines)
-    Right todoAndTags -> Right (([Para inlines], todoAndTags), xs)
+    Right todoTagsActivity -> Right (([Para inlines], todoTagsActivity), xs)
   (Header 1 attr inlines : _) -> Left ("Expected Header 2 or Header 3", Just $ Header 1 attr inlines)
   (Header level attr inlines : xs) -> case evalParser parseTodoAndTagsInline inlines of
     Left (message, _) -> Left (message, Just $ Header level attr inlines)
@@ -222,12 +222,12 @@ parseTitleBlock = parserConstructor $ \case
 
 parseSingleTodoWithProjectAndHeading :: Area -> Project -> Heading -> BlockParser [Block]
 parseSingleTodoWithProjectAndHeading area project heading = do
-  (titleBlocks, (title, tags)) <- parseTodoAndTagsBlock
+  (titleBlocks, (title, tags, activity)) <- parseTodoAndTagsBlock
   (planning_blocks, optional_planning) <- optionalBlocks parsePlanningBlock
   (notes_blocks, optional_notes) <- optionalBlocks parseNotesBlock
   (checklist_blocks, optional_checklist) <- optionalBlocks parseChecklistBlock
   _ <- parseEOLBlock
-  let todo = constructTodo title tags optional_planning optional_notes optional_checklist (Just heading) (Just project) area
+  let todo = constructTodo title tags (pickScheduled activity optional_planning) optional_notes optional_checklist (Just heading) (Just project) area
   return $ titleBlocks ++ planning_blocks ++ notes_blocks ++ checklist_blocks ++ linkFromTodo todo
 
 parseTodoWithProjectAndHeading :: Area -> Project -> Heading -> BlockParser [Block]
@@ -240,20 +240,20 @@ parseTodoWithProjectAndHeading area project heading = parserConstructor $ \case
 
 parseTodoWithProject :: Area -> Project -> BlockParser [Block]
 parseTodoWithProject area project = do
-  (titleBlocks, (title, tags)) <- parseTodoAndTagsBlock
+  (titleBlocks, (title, tags, activity)) <- parseTodoAndTagsBlock
   (planning_blocks, optional_planning) <- optionalBlocks parsePlanningBlock
   (notes_blocks, optional_notes) <- optionalBlocks parseNotesBlock
   (checklist_blocks, optional_checklist) <- optionalBlocks parseChecklistBlock
-  let todo = constructTodo title tags optional_planning optional_notes optional_checklist Nothing (Just project) area
+  let todo = constructTodo title tags (pickScheduled activity optional_planning) optional_notes optional_checklist Nothing (Just project) area
   return $ titleBlocks ++ planning_blocks ++ notes_blocks ++ checklist_blocks ++ linkFromTodo todo
 
 parseTodoInArea :: Area -> BlockParser [Block]
 parseTodoInArea area = do
-  (titleBlocks, (title, tags)) <- parseTodoAndTagsBlock
+  (titleBlocks, (title, tags, activity)) <- parseTodoAndTagsBlock
   (planning_blocks, optional_planning) <- optionalBlocks parsePlanningBlock
   (notes_blocks, optional_notes) <- optionalBlocks parseNotesBlock
   (checklist_blocks, optional_checklist) <- optionalBlocks parseChecklistBlock
-  let todo = constructTodo title tags optional_planning optional_notes optional_checklist Nothing Nothing area
+  let todo = constructTodo title tags (pickScheduled activity optional_planning) optional_notes optional_checklist Nothing Nothing area
   return $ titleBlocks ++ planning_blocks ++ notes_blocks ++ checklist_blocks ++ linkFromTodo todo
 
 parseHeadingMetadata :: Area -> Project -> BlockParser ([Block], Heading)
@@ -391,16 +391,17 @@ parseStrInline = T.concat <$> some singleParser
       (x : _) -> Left ("Expected Str or Space", Just x)
       _ -> Left ("Expected input Str", Nothing)
 
-parseTodoAndTagsInline :: InlineParser (T.Text, [T.Text])
+parseTodoAndTagsInline :: InlineParser (T.Text, [T.Text], TodoActivity)
 parseTodoAndTagsInline = do
-  isTodo
+  todoActivity <- parseTodoType
   parseWhitespaceInline
   title <- parseTitle
   tags <- extract <$> optional parseTags
-  return (title, tags)
+  return (title, tags, todoActivity)
   where
-    isTodo = parserConstructor $ \case
-      ((Span _ [Str "TODO"]) : xs) -> Right ((), xs)
+    parseTodoType = parserConstructor $ \case
+      ((Span _ [Str "TODO"]) : xs) -> Right (Active, xs)
+      ((Str "INACTIVE") : xs) -> Right (Inactive, xs)
       (x : _) -> Left ("Expected 'TODO'", Just x)
       _ -> Left ("Expected input", Nothing)
     parseStr :: InlineParser T.Text

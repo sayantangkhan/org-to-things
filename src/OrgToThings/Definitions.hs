@@ -11,6 +11,8 @@ module OrgToThings.Definitions
     Area (..),
     Scheduled (..),
     Deadline (..),
+    TodoActivity (..),
+    pickScheduled,
     constructTodo,
     constructProject,
   )
@@ -51,11 +53,23 @@ data Project = Project
 newtype Area = Area {area_title :: Text}
   deriving (Show, Eq)
 
-data Scheduled = DateTimeS ((Int, Int, Int), (Int, Int)) | DateS (Int, Int, Int)
+data Scheduled = DateTimeS ((Int, Int, Int), (Int, Int)) | DateS (Int, Int, Int) | Someday
   deriving (Show, Eq)
 
 newtype Deadline = DateD (Int, Int, Int)
   deriving (Show, Eq)
+
+-- | Type encapsulating whether a Todo is active or not.
+-- If a Todo is inactive, then it's scheduled for @Someday@, otherwise, it's scheduled for a specific
+-- day or @Anytime@.
+data TodoActivity = Active | Inactive
+  deriving (Show, Eq)
+
+-- | Utility function to pick Someday over a specific data
+pickScheduled :: TodoActivity -> Maybe (Maybe Scheduled, Maybe Deadline) -> Maybe (Maybe Scheduled, Maybe Deadline)
+pickScheduled Active x = x
+pickScheduled Inactive (Just (_, d)) = Just (Just Someday, d)
+pickScheduled Inactive Nothing = Just (Just Someday, Nothing)
 
 constructTodo :: Text -> [Text] -> Maybe (Maybe Scheduled, Maybe Deadline) -> Maybe Text -> Maybe [Text] -> Maybe Heading -> Maybe Project -> Area -> Todo
 constructTodo title tags optional_planning optional_notes optional_checklist heading project area =

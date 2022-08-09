@@ -104,6 +104,7 @@ intersperse y (x : xs) = mconcat [x, y, intersperse y xs]
 scheduledToString :: Scheduled -> Text
 scheduledToString (DateS (year, month, day)) = pack $ show year <> "-" <> show month <> "-" <> show day
 scheduledToString (DateTimeS ((year, month, day), (hour, minute))) = pack $ show year <> "-" <> show month <> "-" <> show day <> "@" <> show hour <> ":" <> show minute
+scheduledToString Someday = "someday"
 
 deadlineToString :: Deadline -> Text
 deadlineToString (DateD (year, month, day)) = pack $ show year <> "-" <> show month <> "-" <> show day
