@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -33,7 +34,7 @@ import Control.Monad
 import Control.Monad.Trans.State.Strict (StateT (..), evalStateT)
 import Data.Bifunctor (first)
 import Data.Char (isDigit)
-import qualified Data.Text as T
+import Data.Text qualified as T
 import OrgToThings.Definitions
 import OrgToThings.Linkgen (linkFromProject, linkFromTodo)
 import Text.Pandoc.Definition
@@ -232,7 +233,7 @@ parseSingleTodoWithProjectAndHeading area project heading = do
 
 parseTodoWithProjectAndHeading :: Area -> Project -> Heading -> BlockParser [Block]
 parseTodoWithProjectAndHeading area project heading = parserConstructor $ \case
-  (OrderedList attr blocks : xs) -> case sequence $ evalParser (parseSingleTodoWithProjectAndHeading area project heading) <$> blocks of
+  (OrderedList attr blocks : xs) -> case mapM (evalParser (parseSingleTodoWithProjectAndHeading area project heading)) blocks of
     Right transformedBlocks -> Right ([OrderedList attr transformedBlocks], xs)
     Left m -> Left m
   (x : _) -> Left ("Expected OrderedList", Just x)
@@ -502,7 +503,7 @@ expectedMessage expected parser = parserConstructor applyParser
 
 parseAnyChar :: CharParser Char
 parseAnyChar = parserConstructor $ \case
-  [] -> empty
+  [] -> Left "Expected character"
   (c : cs) -> pure (c, cs)
 
 parseStringEOL :: CharParser ()
@@ -512,7 +513,7 @@ parseStringEOL = parserConstructor $ \case
 
 peekAnyChar :: CharParser Char
 peekAnyChar = parserConstructor $ \case
-  [] -> empty
+  [] -> Left "Expected character"
   (c : cs) -> pure (c, c : cs)
 
 satisfyCombinatorString :: (Char -> Bool) -> CharParser Char
