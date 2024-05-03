@@ -78,7 +78,7 @@ instance Applicative (TokenParser t e) where
 
 instance Alternative CharParser where
   empty :: CharParser a
-  empty = TokenParser $ StateT Left
+  empty = TokenParser $ StateT (\_ -> Left "Expected character")
   (<|>) :: CharParser a -> CharParser a -> CharParser a
   a <|> b = TokenParser $ StateT $ \s -> combine (runStateT (unParser a) s) (runStateT (unParser b) s)
     where
