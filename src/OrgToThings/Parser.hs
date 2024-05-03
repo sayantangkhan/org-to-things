@@ -502,7 +502,7 @@ expectedMessage expected parser = parserConstructor applyParser
 
 parseAnyChar :: CharParser Char
 parseAnyChar = parserConstructor $ \case
-  [] -> empty
+  [] -> Left "Expected character"
   (c : cs) -> pure (c, cs)
 
 parseStringEOL :: CharParser ()
@@ -512,7 +512,7 @@ parseStringEOL = parserConstructor $ \case
 
 peekAnyChar :: CharParser Char
 peekAnyChar = parserConstructor $ \case
-  [] -> empty
+  [] -> Left "Expected character"
   (c : cs) -> pure (c, c : cs)
 
 satisfyCombinatorString :: (Char -> Bool) -> CharParser Char
