@@ -1,0 +1,10 @@
+#+STARTUP: indent
+#+STARTUP: overview
+#+TITLE: Goals for the refactored version
+
+* TODO Better error messages
+Might require moving to a more popular parser-combinator library.
+
+* TODO Ignore other org tags rather than erroring out
+
+* TODO Be more robust with timestamps placed after content
